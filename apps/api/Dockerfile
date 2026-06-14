@@ -8,6 +8,8 @@ WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY apps/api/package.json ./apps/api/
+COPY apps/worker/package.json ./apps/worker/
+COPY apps/extension/package.json ./apps/extension/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -35,6 +37,8 @@ WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY apps/api/package.json ./apps/api/
+COPY apps/worker/package.json ./apps/worker/
+COPY apps/extension/package.json ./apps/extension/
 COPY apps/api/prisma/ ./apps/api/prisma/
 
 # Install production dependencies only
