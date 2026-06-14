@@ -20,7 +20,7 @@ COPY apps/api/ ./apps/api/
 RUN cd packages/shared-types && pnpm exec tsc
 
 # Generate Prisma client
-RUN cd apps/api && pnpm exec prisma generate
+RUN npx prisma generate --schema=apps/api/prisma/schema.prisma
 
 # Build API
 RUN cd apps/api && pnpm exec tsc
@@ -41,7 +41,7 @@ COPY apps/api/prisma/ ./apps/api/prisma/
 RUN pnpm install --frozen-lockfile --prod
 
 # Generate Prisma client in production
-RUN cd apps/api && pnpm exec prisma generate
+RUN npx prisma generate --schema=apps/api/prisma/schema.prisma
 
 # Copy built files
 COPY --from=builder /app/packages/shared-types/dist/ ./packages/shared-types/dist/
