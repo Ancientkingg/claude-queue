@@ -18,7 +18,7 @@ COPY apps/api/prisma/ ./apps/api/prisma/
 RUN cd packages/shared-types && pnpm exec tsc
 
 # Need Prisma schema for client generation
-RUN npx prisma generate --schema=apps/api/prisma/schema.prisma || true
+RUN npx -y prisma generate --schema=apps/api/prisma/schema.prisma || true
 
 RUN cd apps/worker && pnpm exec tsc
 
@@ -38,7 +38,7 @@ COPY apps/api/prisma/ ./apps/api/prisma/
 RUN pnpm install --frozen-lockfile --prod
 
 # Generate Prisma client
-RUN npx prisma generate --schema=apps/api/prisma/schema.prisma || true
+RUN npx -y prisma generate --schema=apps/api/prisma/schema.prisma || true
 
 COPY --from=builder /app/packages/shared-types/dist/ ./packages/shared-types/dist/
 COPY --from=builder /app/apps/worker/dist/ ./apps/worker/dist/
