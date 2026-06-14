@@ -1,6 +1,6 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
-RUN npm install -g pnpm
+RUN apk add --no-cache openssl && npm install -g pnpm
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN cd apps/api && pnpm exec tsc
 
 # Stage 2: Production
 FROM node:20-alpine AS production
-RUN npm install -g pnpm
+RUN apk add --no-cache openssl && npm install -g pnpm
 
 WORKDIR /app
 
