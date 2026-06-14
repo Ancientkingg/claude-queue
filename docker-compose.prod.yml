@@ -54,7 +54,7 @@ services:
       BACKEND_ADMIN_TOKEN: ${BACKEND_ADMIN_TOKEN}
       PORT: 3000
     ports:
-      - "${API_PORT:-3000}:3000"
+      - "${API_PORT:-3001}:3000"
     depends_on:
       postgres:
         condition: service_healthy
