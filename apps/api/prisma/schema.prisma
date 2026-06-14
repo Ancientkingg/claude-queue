@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_name    String
+  session_profile Json
+  status          String          @default("ACTIVE")
+  created_at      DateTime        @default(now())
+  messages        QueuedMessage[]
+}
+
+model QueuedMessage {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id      String       @db.Uuid
+  conversation_id String?
+  prompt_text     String
+  model_target    String
+  thinking_mode   Boolean      @default(false)
+  status          String       @default("PENDING")
+  scheduled_for   DateTime
+  created_at      DateTime     @default(now())
+
+  account         Account      @relation(fields: [account_id], references: [id])
+  attachments     Attachment[]
+}
+
+model Attachment {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id  String        @db.Uuid
+  storage_key String
+  file_name   String
+  mime_type   String
+
+  message     QueuedMessage @relation(fields: [message_id], references: [id], onDelete: Cascade)
+}
