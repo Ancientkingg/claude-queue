@@ -179,8 +179,20 @@ export async function startConsumer(): Promise<Worker> {
     console.log(`✅ Job ${job.id} completed successfully`);
   });
 
-  worker.on('failed', (job: Job | undefined, err: Error) => {
+  worker.on('failed', async (job: Job | undefined, err: Error) => {
     console.error(`❌ Job ${job?.id ?? 'unknown'} failed: ${err.message}`);
+    // Ensure the DB reflects FAILED even after all retries are exhausted.
+    // processJob may have left the status as PROCESSING on the final attempt.
+    if (job) {
+      try {
+        const payload = QueueJobSchema.safeParse(job.data);
+        if (payload.success) {
+          await updateJobStatus(payload.data.jobId, MessageStatus.FAILED);
+        }
+      } catch (dbErr) {
+        console.error(`  ⚠️  Failed to update DB status for failed job: ${(dbErr as Error).message}`);
+      }
+    }
   });
 
   worker.on('error', (err: Error) => {

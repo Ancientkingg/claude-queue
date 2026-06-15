@@ -98,7 +98,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       config.delaySeconds = delay;
     }
 
-    onSubmit(config);
+    await onSubmit(config);
     setIsSubmitting(false);
   }, [
     extractPromptText,

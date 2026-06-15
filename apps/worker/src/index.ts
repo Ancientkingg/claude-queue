@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
     try {
       await shutdownConsumer(worker);
-      await closeBrowser();
+      // closeBrowser() already called in shutdownConsumer
       await prisma.$disconnect();
       console.log('👋 Worker shut down cleanly');
     } catch (err) {

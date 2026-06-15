@@ -9,7 +9,7 @@ datasource db {
 
 model Account {
   id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  account_name    String
+  account_name    String          @unique
   session_profile Json
   status          String          @default("ACTIVE")
   created_at      DateTime        @default(now())

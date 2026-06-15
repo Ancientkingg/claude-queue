@@ -34,6 +34,7 @@ export class AccountController {
 
     return {
       id: account.id,
+      accountId: account.id,
       accountName: account.account_name,
       status: account.status,
       createdAt: account.created_at.toISOString(),

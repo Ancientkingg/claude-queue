@@ -13,9 +13,13 @@ export const CreateJobSchema = z.object({
   modelTarget: z.string().min(1, 'modelTarget is required'),
   promptText: z.string().min(1, 'promptText is required'),
   thinkingMode: z.boolean().optional().default(false),
-  scheduledFor: z.string().datetime({ message: 'scheduledFor must be a valid ISO 8601 datetime' }),
+  scheduledFor: z.string().datetime({ message: 'scheduledFor must be a valid ISO 8601 datetime' }).optional(),
+  delaySeconds: z.number().int().min(0).optional(),
   attachments: z.array(AttachmentInputSchema).optional().default([]),
-});
+}).refine(
+  (data) => data.scheduledFor != null || data.delaySeconds != null,
+  { message: 'Either scheduledFor (ISO datetime) or delaySeconds (seconds from now) is required' },
+);
 
 export type CreateJobDto = z.infer<typeof CreateJobSchema>;
 export type AttachmentInput = z.infer<typeof AttachmentInputSchema>;

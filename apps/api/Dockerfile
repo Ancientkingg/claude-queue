@@ -29,7 +29,7 @@ RUN cd apps/api && pnpm exec tsc
 
 # Stage 2: Production
 FROM node:20-alpine AS production
-RUN apk add --no-cache openssl python3 make g++ && npm install -g pnpm
+RUN apk add --no-cache openssl && npm install -g pnpm
 
 WORKDIR /app
 

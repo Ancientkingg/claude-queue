@@ -32,14 +32,43 @@ export class StorageService implements OnModuleInit {
   }
 
   async ensureBucket(): Promise<void> {
-    try {
-      await this.s3.send(new HeadBucketCommand({ Bucket: this.bucket }));
-      this.logger.log(`Bucket "${this.bucket}" already exists`);
-    } catch {
-      this.logger.log(`Creating bucket "${this.bucket}"...`);
-      await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
-      this.logger.log(`Bucket "${this.bucket}" created`);
+    const maxRetries = 5;
+    const retryDelayMs = 3000;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.s3.send(new HeadBucketCommand({ Bucket: this.bucket }));
+        this.logger.log(`Bucket "${this.bucket}" already exists`);
+        return;
+      } catch (headErr: unknown) {
+        const code = (headErr as { '$metadata'?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+        // 404 means bucket doesn't exist — create it
+        if (code === 404) {
+          try {
+            this.logger.log(`Creating bucket "${this.bucket}"...`);
+            await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
+            this.logger.log(`Bucket "${this.bucket}" created`);
+            return;
+          } catch (createErr) {
+            const msg = createErr instanceof Error ? createErr.message : String(createErr);
+            this.logger.error(`Failed to create bucket: ${msg}`);
+          }
+        } else {
+          const msg = headErr instanceof Error ? headErr.message : String(headErr);
+          this.logger.warn(`S3 unreachable (attempt ${attempt}/${maxRetries}): ${msg}`);
+        }
+      }
+
+      if (attempt < maxRetries) {
+        this.logger.log(`Retrying in ${retryDelayMs / 1000}s...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
     }
+
+    this.logger.warn(
+      `Could not ensure bucket "${this.bucket}" after ${maxRetries} attempts. ` +
+      `The API will start but S3 operations may fail until MinIO is ready.`,
+    );
   }
 
   async upload(key: string, buffer: Buffer, mimeType: string): Promise<string> {

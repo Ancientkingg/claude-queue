@@ -20,7 +20,7 @@ COPY apps/api/prisma/ ./apps/api/prisma/
 RUN cd packages/shared-types && pnpm exec tsc
 
 # Need Prisma schema for client generation
-RUN cd apps/api && pnpm exec prisma generate || true
+RUN cd apps/api && pnpm exec prisma generate
 
 RUN cd apps/worker && pnpm exec tsc
 
@@ -44,13 +44,13 @@ COPY apps/api/prisma/ ./apps/api/prisma/
 RUN pnpm install --frozen-lockfile --prod
 
 # Install Chromium system dependencies via apt (need playwright installed first)
-RUN npx playwright install-deps chromium
+RUN apt-get update && npx playwright install-deps chromium
 
 # Install only Chromium browser (not Firefox/WebKit)
 RUN npx playwright install chromium
 
 # Generate Prisma client
-RUN cd apps/api && pnpm exec prisma generate || true
+RUN cd apps/api && pnpm exec prisma generate
 
 # Copy built artifacts from builder
 COPY --from=builder /app/packages/shared-types/dist/ ./packages/shared-types/dist/

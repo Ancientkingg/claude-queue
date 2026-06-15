@@ -47,6 +47,11 @@ export class QueueService {
       });
     }
 
+    // Resolve scheduled time: absolute timestamp or relative delay
+    const scheduledFor = dto.scheduledFor
+      ? new Date(dto.scheduledFor)
+      : new Date(Date.now() + (dto.delaySeconds ?? 0) * 1000);
+
     // Create QueuedMessage + Attachment records in a transaction
     const message = await this.prisma.queuedMessage.create({
       data: {
@@ -56,7 +61,7 @@ export class QueueService {
         model_target: dto.modelTarget,
         thinking_mode: dto.thinkingMode,
         status: 'PENDING',
-        scheduled_for: new Date(dto.scheduledFor),
+        scheduled_for: scheduledFor,
         attachments: {
           create: attachmentRecords.map((a) => ({
             storage_key: a.storageKey,
@@ -70,10 +75,8 @@ export class QueueService {
       },
     });
 
-    // Calculate BullMQ delay from scheduledFor
-    const scheduledMs = new Date(dto.scheduledFor).getTime();
-    const nowMs = Date.now();
-    const delayMs = Math.max(0, scheduledMs - nowMs);
+    // Calculate BullMQ delay from resolved scheduled time
+    const delayMs = Math.max(0, scheduledFor.getTime() - Date.now());
 
     // Build the job payload using the shared-types schema shape
     const jobPayload: QueueJob = {
