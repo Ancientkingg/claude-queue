@@ -26,17 +26,35 @@ async function bootstrap() {
     next();
   });
 
-  // CORS: restrict to the extension's origin. In production, set ALLOWED_ORIGINS env var.
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((s) => s.trim()) ?? [];
+  // CORS: allow the browser extension (moz-extension:// and chrome-extension://
+  // origins carry a per-install UUID, so they can't be matched by a literal string
+  // or glob — we match the scheme via a callback). Additional web origins can be
+  // permitted with the ALLOWED_ORIGINS env var (comma-separated).
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean) ?? [];
+
   app.enableCors({
-    origin: allowedOrigins.length > 0
-      ? allowedOrigins
-      : [
-          // Browser extension origins
-          'moz-extension://*',
-          'chrome-extension://*',
-        ],
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Non-browser clients (curl, the worker, server-to-server) send no Origin.
+      if (!origin) return callback(null, true);
+
+      const isExtension =
+        origin.startsWith('moz-extension://') ||
+        origin.startsWith('chrome-extension://');
+
+      if (isExtension || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      logger.warn(`🚫 CORS blocked origin: ${origin}`);
+      return callback(null, false);
+    },
     methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86400,
   });
 
