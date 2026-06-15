@@ -4,7 +4,11 @@ declare global {
   const ContentScriptContext: typeof import('wxt/utils/content-script-context').ContentScriptContext
   const InvalidMatchPattern: typeof import('wxt/utils/match-patterns').InvalidMatchPattern
   const MatchPattern: typeof import('wxt/utils/match-patterns').MatchPattern
+  const PseudoChat: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/PseudoChat').PseudoChat
   const QueueButton: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/QueueButton').QueueButton
+  const QueuedBubbles: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/QueuedBubbles').QueuedBubbles
+  const QueuedCard: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/QueuedBubbles').QueuedCard
+  const QueuedSidebar: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/QueuedSidebar').QueuedSidebar
   const ScheduleModal: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/ScheduleModal').ScheduleModal
   const StatusBadge: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/StatusBadge').StatusBadge
   const browser: typeof import('wxt/browser').browser
@@ -17,6 +21,7 @@ declare global {
   const defineUnlistedScript: typeof import('wxt/utils/define-unlisted-script').defineUnlistedScript
   const defineWxtPlugin: typeof import('wxt/utils/define-wxt-plugin').defineWxtPlugin
   const fakeBrowser: typeof import('wxt/testing').fakeBrowser
+  const formatSendTime: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/queue-hooks').formatSendTime
   const getAppConfig: typeof import('wxt/utils/app-config').getAppConfig
   const injectScript: typeof import('wxt/utils/inject-script').injectScript
   const storage: typeof import('wxt/utils/storage').storage
@@ -24,7 +29,9 @@ declare global {
   const useCallback: typeof import('react').useCallback
   const useContext: typeof import('react').useContext
   const useEffect: typeof import('react').useEffect
+  const useLocationPath: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/queue-hooks').useLocationPath
   const useMemo: typeof import('react').useMemo
+  const useQueueJobs: typeof import('/Users/samuelbruin/Downloads/claude-queue/apps/extension/components/queue-hooks').useQueueJobs
   const useReducer: typeof import('react').useReducer
   const useRef: typeof import('react').useRef
   const useState: typeof import('react').useState

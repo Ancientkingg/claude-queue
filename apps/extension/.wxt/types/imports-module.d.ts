@@ -18,7 +18,11 @@ declare module '#imports' {
   export { InvalidMatchPattern, MatchPattern } from 'wxt/utils/match-patterns';
   export { useState, useCallback, useMemo, useEffect, useRef, useContext, useReducer } from 'react';
   export { fakeBrowser } from 'wxt/testing';
+  export { PseudoChat } from '../components/PseudoChat';
   export { QueueButton } from '../components/QueueButton';
+  export { QueuedCard, QueuedBubbles } from '../components/QueuedBubbles';
+  export { QueuedSidebar } from '../components/QueuedSidebar';
   export { ScheduleModal, ScheduleConfig } from '../components/ScheduleModal';
   export { StatusBadge } from '../components/StatusBadge';
+  export { useQueueJobs, useLocationPath, formatSendTime } from '../components/queue-hooks';
 }
