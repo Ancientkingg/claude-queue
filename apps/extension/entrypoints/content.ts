@@ -1,14 +1,15 @@
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import { QueueButton } from '@/components/QueueButton';
-import '@/assets/content.css';
+// NOTE: No CSS import — injecting Tailwind utilities into claude.ai's <head>
+// would conflict with their CSS modules and break the page.
 
 export default defineContentScript({
   matches: ['https://claude.ai/*'],
-  cssInjectionMode: 'ui',
+  cssInjectionMode: 'manifest', // don't auto-inject any CSS
 
   async main(ctx) {
-    console.log('[Claude Queue] Content script loaded on claude.ai');
+    console.log('[Claude Queue] Content script loaded');
 
     // Handle GET_LOCAL_STORAGE requests from the background script
     browser.runtime.onMessage.addListener(
@@ -32,14 +33,14 @@ export default defineContentScript({
       },
     );
 
-    // Find a suitable anchor — Claude.ai is a React SPA so we must wait for render
+    // Wait for Claude's React SPA to render
     const anchor = await findAnchor();
 
     const ui = await createIntegratedUi(ctx, {
       name: 'claude-queue-button',
       position: 'inline',
       anchor: anchor ?? document.body,
-      append: anchor ? 'before' : 'last',
+      append: 'before',
       onMount(container: HTMLElement) {
         const wrapper = document.createElement('span');
         wrapper.id = 'claude-queue-root';
@@ -62,51 +63,39 @@ export default defineContentScript({
 });
 
 /**
- * Find a suitable anchor element on claude.ai.
- * The page is a React SPA — all DOM is rendered dynamically.
+ * Find the Send button or input area on claude.ai.
+ * Tries multiple selectors — page is a React SPA so we must poll.
  */
 async function findAnchor(): Promise<Element | null> {
   const SELECTORS = [
-    // Claude.ai send button
     'button[aria-label="Send Message"]',
     'button[data-testid="send-button"]',
     'button[aria-label="Send"]',
-    // Any submit button inside a form (chat input bar)
     'form button[type="submit"]',
-    // Contenteditable input areas (the prompt box)
     '[contenteditable="true"]',
     '[data-placeholder]',
-    // Textareas
     'textarea[placeholder*="Message" i]',
     'textarea[placeholder*="Claude" i]',
-    // ProseMirror editor (used by some chat UIs)
     '.ProseMirror',
     'div[class*="ProseMirror"]',
   ];
 
-  for (const selector of SELECTORS) {
-    const el = await waitForElement(selector, 8000);
+  for (const sel of SELECTORS) {
+    const el = await waitForElement(sel, 8000);
     if (el) {
-      console.log(`[Claude Queue] Anchor found: "${selector}"`);
+      console.log(`[Claude Queue] Anchor: "${sel}"`);
       return el;
     }
   }
 
-  console.warn('[Claude Queue] No anchor found — injecting at end of body');
+  console.warn('[Claude Queue] No anchor found, appending to body');
   return null;
 }
 
-/**
- * Wait for a DOM element matching `selector` to appear.
- * Returns null on timeout instead of throwing.
- */
 function waitForElement(selector: string, timeoutMs: number): Promise<Element | null> {
   return new Promise((resolve) => {
     const existing = document.querySelector(selector);
-    if (existing) {
-      resolve(existing);
-      return;
-    }
+    if (existing) return resolve(existing);
 
     let settled = false;
     const done = (el: Element | null) => {
@@ -118,12 +107,10 @@ function waitForElement(selector: string, timeoutMs: number): Promise<Element | 
     };
 
     const timer = setTimeout(() => done(null), timeoutMs);
-
     const observer = new MutationObserver(() => {
       const el = document.querySelector(selector);
       if (el) done(el);
     });
-
     observer.observe(document.body, { childList: true, subtree: true });
   });
 }

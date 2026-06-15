@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 
+// ── Types ───────────────────────────────────────────────────────────────────────
+
 interface ScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -10,7 +12,7 @@ export interface ScheduleConfig {
   promptText: string;
   modelTarget: string;
   thinkingMode: boolean;
-  scheduledAt?: string; // ISO 8601
+  scheduledAt?: string;
   delaySeconds?: number;
 }
 
@@ -27,7 +29,20 @@ const MODEL_SUGGESTIONS = [
   'claude-sonnet-4-20250514',
   'claude-opus-4-20250514',
   'claude-3-5-haiku-20241022',
-] as const;
+];
+
+// ── Shared style constants (matching Claude's dark theme) ────────────────────────
+
+const CL = {
+  orange: '#da7756',
+  bg: '#1a1a18',
+  surface: '#2a2a27',
+  border: '#3d3d38',
+  text: '#e8e4dd',
+  muted: '#9b9790',
+} as const;
+
+// ── Component ────────────────────────────────────────────────────────────────────
 
 export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   isOpen,
@@ -42,7 +57,6 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [thinkingMode, setThinkingMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setMode('delay');
@@ -54,21 +68,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   }, [isOpen]);
 
   const extractPromptText = useCallback((): string => {
-    // Try to find the contenteditable area on claude.ai
-    const editable = document.querySelector<HTMLElement>(
-      '[contenteditable="true"]',
-    );
-    if (editable) {
-      return editable.textContent?.trim() ?? '';
-    }
+    const editable = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (editable) return editable.textContent?.trim() ?? '';
 
-    // Fallback: textarea
-    const textarea = document.querySelector<HTMLTextAreaElement>(
-      'textarea[placeholder]',
-    );
-    if (textarea) {
-      return textarea.value.trim();
-    }
+    const textarea = document.querySelector<HTMLTextAreaElement>('textarea[placeholder]');
+    if (textarea) return textarea.value.trim();
 
     return '';
   }, []);
@@ -82,11 +86,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
     setIsSubmitting(true);
 
-    const config: ScheduleConfig = {
-      promptText,
-      modelTarget,
-      thinkingMode,
-    };
+    const config: ScheduleConfig = { promptText, modelTarget, thinkingMode };
 
     if (mode === 'absolute' && scheduledAt) {
       config.scheduledAt = new Date(scheduledAt).toISOString();
@@ -101,64 +101,128 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     await onSubmit(config);
     setIsSubmitting(false);
   }, [
-    extractPromptText,
-    modelTarget,
-    thinkingMode,
-    mode,
-    scheduledAt,
-    selectedDelay,
-    customDelayMinutes,
-    onSubmit,
+    extractPromptText, modelTarget, thinkingMode,
+    mode, scheduledAt, selectedDelay, customDelayMinutes, onSubmit,
   ]);
 
   if (!isOpen) return null;
 
+  // ── Inline style helpers ────────────────────────────────────────────────────
+
+  const btnBase = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: '8px 12px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    border: 'none',
+    color: active ? '#fff' : CL.muted,
+    background: active ? CL.orange : CL.surface,
+    transition: 'background 0.15s, color 0.15s',
+  });
+
+  const delayBtn = (active: boolean): React.CSSProperties => ({
+    padding: '8px 4px',
+    borderRadius: 8,
+    fontSize: 13,
+    cursor: 'pointer',
+    border: active ? `1px solid ${CL.orange}` : `1px solid ${CL.border}`,
+    color: active ? '#fff' : CL.muted,
+    background: active ? CL.orange : CL.surface,
+    transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+  });
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 8,
+    fontSize: 13,
+    color: CL.text,
+    background: CL.surface,
+    border: `1px solid ${CL.border}`,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 13,
+    fontWeight: 500,
+    color: CL.text,
+    marginBottom: 8,
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <div
-      className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.55)',
       }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-claude-bg border border-claude-border rounded-xl shadow-2xl w-[400px] max-h-[80vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-claude-border">
-          <h2 className="text-lg font-semibold text-claude-text">
+      <div
+        style={{
+          background: CL.bg,
+          border: `1px solid ${CL.border}`,
+          borderRadius: 12,
+          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+          width: 400,
+          maxHeight: '80vh',
+          overflowY: 'auto',
+        }}
+      >
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: `1px solid ${CL.border}`,
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: CL.text, margin: 0 }}>
             Queue Message
           </h2>
           <button
             onClick={onClose}
-            className="text-claude-text-muted hover:text-claude-text transition-colors text-xl leading-none"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: CL.muted,
+              fontSize: 22,
+              cursor: 'pointer',
+              lineHeight: 1,
+              padding: 0,
+            }}
           >
             ×
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-5 py-4 flex flex-col gap-4">
-          {/* Schedule Mode Toggle */}
+        {/* ── Body ────────────────────────────────────────────────────────── */}
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Schedule Type */}
           <div>
-            <label className="block text-sm font-medium text-claude-text mb-2">
-              Schedule Type
-            </label>
-            <div className="flex gap-2">
+            <span style={labelStyle}>Schedule Type</span>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => setMode('delay')}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  mode === 'delay'
-                    ? 'bg-claude-orange text-white'
-                    : 'bg-claude-surface text-claude-text-muted hover:text-claude-text'
-                }`}
+                style={btnBase(mode === 'delay')}
               >
                 Delay
               </button>
               <button
                 onClick={() => setMode('absolute')}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  mode === 'absolute'
-                    ? 'bg-claude-orange text-white'
-                    : 'bg-claude-surface text-claude-text-muted hover:text-claude-text'
-                }`}
+                style={btnBase(mode === 'absolute')}
               >
                 Send At
               </button>
@@ -168,19 +232,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           {/* Delay Options */}
           {mode === 'delay' && (
             <div>
-              <label className="block text-sm font-medium text-claude-text mb-2">
-                Delay
-              </label>
-              <div className="grid grid-cols-3 gap-2">
+              <span style={labelStyle}>Delay</span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {DELAY_OPTIONS.map((opt) => (
                   <button
                     key={opt.label}
                     onClick={() => setSelectedDelay(opt.seconds)}
-                    className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                      selectedDelay === opt.seconds
-                        ? 'bg-claude-orange text-white'
-                        : 'bg-claude-surface text-claude-text-muted hover:text-claude-text border border-claude-border'
-                    }`}
+                    style={delayBtn(selectedDelay === opt.seconds)}
                   >
                     {opt.label}
                   </button>
@@ -193,7 +251,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                   placeholder="Minutes..."
                   value={customDelayMinutes}
                   onChange={(e) => setCustomDelayMinutes(e.target.value)}
-                  className="mt-2 w-full px-3 py-2 bg-claude-surface border border-claude-border rounded-lg text-claude-text text-sm focus:outline-none focus:border-claude-orange"
+                  style={{ ...inputStyle, marginTop: 8 }}
                 />
               )}
             </div>
@@ -202,62 +260,89 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           {/* Absolute Time */}
           {mode === 'absolute' && (
             <div>
-              <label className="block text-sm font-medium text-claude-text mb-2">
-                Send At
-              </label>
+              <span style={labelStyle}>Send At</span>
               <input
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                className="w-full px-3 py-2 bg-claude-surface border border-claude-border rounded-lg text-claude-text text-sm focus:outline-none focus:border-claude-orange"
+                style={inputStyle}
               />
             </div>
           )}
 
           {/* Model */}
           <div>
-            <label className="block text-sm font-medium text-claude-text mb-2">
-              Model
-            </label>
+            <span style={labelStyle}>Model</span>
             <select
               value={modelTarget}
-              onChange={(e) => setModelTarget(e.target.value as any)}
-              className="w-full px-3 py-2 bg-claude-surface border border-claude-border rounded-lg text-claude-text text-sm focus:outline-none focus:border-claude-orange"
+              onChange={(e) => setModelTarget(e.target.value)}
+              style={inputStyle}
             >
               {MODEL_SUGGESTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
+                <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </div>
 
-          {/* Thinking Mode */}
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-claude-text">
+          {/* Thinking Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: CL.text }}>
               Extended Thinking
-            </label>
+            </span>
             <button
               onClick={() => setThinkingMode(!thinkingMode)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                thinkingMode ? 'bg-claude-orange' : 'bg-claude-surface'
-              }`}
+              style={{
+                position: 'relative',
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                border: 'none',
+                cursor: 'pointer',
+                background: thinkingMode ? CL.orange : CL.surface,
+                transition: 'background 0.15s',
+                padding: 0,
+              }}
             >
               <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                  thinkingMode ? 'translate-x-5' : ''
-                }`}
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: thinkingMode ? 22 : 2,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  transition: 'left 0.15s',
+                }}
               />
             </button>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-claude-border">
+        {/* ── Footer ──────────────────────────────────────────────────────── */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderTop: `1px solid ${CL.border}`,
+          }}
+        >
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="w-full px-4 py-2.5 bg-claude-orange hover:bg-claude-orange/90 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              borderRadius: 8,
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 500,
+              color: '#fff',
+              background: CL.orange,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              opacity: isSubmitting ? 0.5 : 1,
+              transition: 'opacity 0.15s',
+            }}
           >
             {isSubmitting ? 'Queueing...' : '⏰ Queue Message'}
           </button>

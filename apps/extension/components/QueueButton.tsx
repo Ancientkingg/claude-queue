@@ -8,7 +8,6 @@ export const QueueButton: React.FC = () => {
 
   const handleSubmit = useCallback(async (config: ScheduleConfig) => {
     try {
-      // Send to background script for processing
       const response = await browser.runtime.sendMessage({
         type: 'QUEUE_JOB',
         payload: config,
@@ -29,13 +28,39 @@ export const QueueButton: React.FC = () => {
     setIsModalOpen(false);
   }, []);
 
+  const btnStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    border: '1px solid rgba(218, 119, 86, 0.3)',
+    background: 'rgba(218, 119, 86, 0.12)',
+    color: '#da7756',
+    cursor: 'pointer',
+    marginLeft: 6,
+    marginRight: 6,
+    flexShrink: 0,
+    padding: 0,
+    transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
+    outline: 'none',
+  };
+
   return (
     <>
       <button
         onClick={() => setIsModalOpen(true)}
         title="Queue message for later"
-        className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-claude-orange/20 to-claude-orange/10 hover:from-claude-orange/30 hover:to-claude-orange/15 text-claude-orange hover:text-claude-orange/90 transition-all duration-150 border border-claude-orange/30 hover:border-claude-orange/50 shadow-sm hover:shadow-md"
-        style={{ marginLeft: '6px', marginRight: '6px', flexShrink: 0 }}
+        style={btnStyle}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(218, 119, 86, 0.22)';
+          e.currentTarget.style.borderColor = 'rgba(218, 119, 86, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(218, 119, 86, 0.12)';
+          e.currentTarget.style.borderColor = 'rgba(218, 119, 86, 0.3)';
+        }}
       >
         <svg
           width="18"
@@ -54,7 +79,11 @@ export const QueueButton: React.FC = () => {
 
       {lastStatus && (
         <span
-          className={`text-xs ml-1 ${lastStatus.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}
+          style={{
+            fontSize: 12,
+            marginLeft: 4,
+            color: lastStatus.startsWith('✓') ? '#4ade80' : '#f87171',
+          }}
         >
           {lastStatus}
         </span>
