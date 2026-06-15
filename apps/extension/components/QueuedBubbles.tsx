@@ -54,11 +54,19 @@ export const QueuedCard: React.FC<{ job: QueuedJob; store: QueueStore }> = ({ jo
   );
 };
 
-/** Renders all queued cards for the currently-open conversation. */
+/** Renders all queued cards for the currently-open conversation.
+ *  Only shows on /chat/<uuid> and /new pages — never on /recents, /projects, etc. */
 export const QueuedBubbles: React.FC<{ store: QueueStore }> = ({ store }) => {
   const jobs = useQueueJobs(store);
   const path = useLocationPath();
-  const conversationId = parseConversationId(path);
+
+  // Only render on chat-relevant pages
+  const isChatPage = path.startsWith('/chat/');
+  const isNewPage = path === '/new';
+  if (!isChatPage && !isNewPage) return null;
+
+  const conversationId = isChatPage ? parseConversationId(path) : null;
+  // On /new, show jobs queued without a conversation; on /chat/<uuid>, show jobs for that chat
   const mine = jobs.filter((j) => j.conversationId === conversationId);
   if (mine.length === 0) return null;
   return (

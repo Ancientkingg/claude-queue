@@ -57,4 +57,13 @@ describe('QueueStore', () => {
     expect(store.jobsForConversation('c1').map(j => j.id)).toEqual(['a']);
     expect(store.jobsForConversation(null).map(j => j.id)).toEqual(['b']);
   });
+
+  it('filters out non-PENDING jobs from fetched results', async () => {
+    const completed = { ...job('a'), status: 'COMPLETED' };
+    const processing = { ...job('b'), status: 'PROCESSING' };
+    const pending = job('c');
+    const store = new QueueStore(async () => [completed, processing, pending]);
+    await store.refresh();
+    expect(store.getJobs().map(j => j.id)).toEqual(['c']);
+  });
 });

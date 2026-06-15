@@ -196,12 +196,29 @@ function mountQueuedSidebar(store: QueueStore) {
 
   const ensure = () => {
     if (wrapper.isConnected) return;
-    // Anchor: top of the chat-history nav. Find a nav list that contains chat
-    // links and insert our section before it.
-    const navLink = document.querySelector('nav a[href^="/chat/"], a[href^="/chat/"]');
-    const list = navLink?.closest('nav') ?? navLink?.parentElement?.parentElement;
-    if (list?.parentElement) {
-      list.parentElement.insertBefore(wrapper, list);
+    // Anchor: inside the sidebar nav, before the chat list. Use the "Chats"
+    // link (href="/recents") which is always present; fall back to any nav
+    // link, then the nav itself.
+    const chatsLink = document.querySelector('nav a[href="/recents"]');
+    if (chatsLink) {
+      // Insert our section right before the Chats link's parent list container.
+      const list = chatsLink.parentElement;
+      if (list?.parentElement) {
+        list.parentElement.insertBefore(wrapper, list);
+        return;
+      }
+    }
+    // Fallback: find the sidebar nav and insert at the top of its scroll area.
+    const nav = document.querySelector('nav[aria-label="Sidebar"]');
+    if (nav) {
+      // The nav has a header div then a scrollable flex-grow div — find the
+      // second child and insert our section there.
+      const scrollArea = nav.children[1] ?? nav.firstElementChild;
+      if (scrollArea) {
+        scrollArea.insertBefore(wrapper, scrollArea.firstChild);
+        return;
+      }
+      nav.insertBefore(wrapper, nav.firstChild);
     }
   };
   ensure();

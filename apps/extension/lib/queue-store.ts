@@ -45,11 +45,14 @@ export class QueueStore {
   private notify() { for (const l of this.listeners) l(this.jobs); }
 
   private recompute(fetched: QueuedJob[]) {
-    const fetchedIds = new Set(fetched.map((j) => j.id));
+    // Client-side safety net: never surface non-PENDING jobs, even if the
+    // backend hasn't been updated with the status filter yet.
+    const pending = fetched.filter((j) => j.status === 'PENDING');
+    const fetchedIds = new Set(pending.map((j) => j.id));
     this.localAdds = this.localAdds.filter(
       (a) => !fetchedIds.has(a.job.id) && this.now() - a.at < this.graceMs,
     );
-    this.jobs = [...fetched, ...this.localAdds.map((a) => a.job)];
+    this.jobs = [...pending, ...this.localAdds.map((a) => a.job)];
     this.notify();
   }
 
