@@ -9,6 +9,14 @@ export interface WorkerConfig {
   s3Bucket: string;
   browserHeadless: boolean;
   concurrency: number;
+  /** Maximum attempts per job before marking it FAILED (BullMQ retries). */
+  maxAttempts: number;
+  /** Backoff delay in ms between retries (exponential, this is the base). */
+  retryBaseMs: number;
+  /** Time to wait for a Turnstile challenge to auto-resolve before calling solver. */
+  challengeAutoResolveMs: number;
+  /** Timeout for the external CAPTCHA solving service. */
+  captchaSolverTimeoutMs: number;
 }
 
 function requireEnv(name: string, fallback?: string): string {
@@ -31,4 +39,8 @@ export const config: WorkerConfig = {
   s3Bucket: requireEnv('S3_BUCKET', 'claude-queue-attachments'),
   browserHeadless: (process.env['BROWSER_HEADLESS'] ?? 'true') === 'true',
   concurrency: parseInt(process.env['CONCURRENCY'] ?? '1', 10),
+  maxAttempts: parseInt(process.env['MAX_ATTEMPTS'] ?? '3', 10),
+  retryBaseMs: parseInt(process.env['RETRY_BASE_MS'] ?? '5000', 10),
+  challengeAutoResolveMs: parseInt(process.env['CHALLENGE_AUTO_RESOLVE_MS'] ?? '15000', 10),
+  captchaSolverTimeoutMs: parseInt(process.env['CAPTCHA_SOLVER_TIMEOUT_MS'] ?? '120000', 10),
 };

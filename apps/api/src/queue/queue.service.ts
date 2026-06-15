@@ -93,14 +93,16 @@ export class QueueService {
       })),
     };
 
-    // Push to BullMQ
+    // Push to BullMQ with configurable retries
+    const maxAttempts = parseInt(process.env['MAX_ATTEMPTS'] ?? '3', 10);
+    const retryBaseMs = parseInt(process.env['RETRY_BASE_MS'] ?? '5000', 10);
     await this.queue.add('process-message', jobPayload, {
       jobId: message.id,
       delay: delayMs,
-      attempts: 3,
+      attempts: maxAttempts,
       backoff: {
         type: 'exponential',
-        delay: 5000,
+        delay: retryBaseMs,
       },
     });
 

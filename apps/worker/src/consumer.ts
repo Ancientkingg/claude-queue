@@ -11,6 +11,7 @@ import { getJobById, updateJobStatus, updateAccountStatus } from './db/prisma-cl
 import { downloadAttachment } from './storage/s3-client.js';
 import { createBrowserContext, closeBrowser } from './browser/context-factory.js';
 import { executeClaudePrompt, type AutomationPayload } from './browser/claude-automator.js';
+import { nextProxy } from './browser/proxy-rotator.js';
 
 const QUEUE_NAME = 'claude-queue';
 
@@ -96,7 +97,11 @@ async function processJob(job: Job): Promise<void> {
   // 6. Create browser context
   let context;
   try {
-    context = await createBrowserContext(sessionProfile, config.browserHeadless);
+    context = await createBrowserContext(
+      sessionProfile,
+      config.browserHeadless,
+      nextProxy(),
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`  ❌ Failed to create browser context: ${msg}`);
