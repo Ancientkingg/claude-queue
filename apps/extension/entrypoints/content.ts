@@ -44,9 +44,22 @@ export default defineContentScript({
     const ensureMounted = () => {
       if (wrapper.isConnected) return;
       const mic = findMicButton();
-      if (mic && mic.parentElement) {
-        mic.parentElement.insertBefore(wrapper, mic.nextSibling);
-        return;
+      if (mic) {
+        // The mic lives inside a hover-styled group container (it darkens and
+        // reveals a mic-only settings popout). Inserting next to the mic button
+        // puts us *inside* that group. Instead insert after the whole group
+        // wrapper (two levels up) as a sibling in the toolbar row, so the Queue
+        // button sits between the mic group and the wave button, on its own.
+        const groupWrapper = mic.parentElement?.parentElement;
+        const row = groupWrapper?.parentElement;
+        if (groupWrapper && row && groupWrapper.parentElement === row) {
+          row.insertBefore(wrapper, groupWrapper.nextSibling);
+          return;
+        }
+        if (mic.parentElement) {
+          mic.parentElement.insertBefore(wrapper, mic.nextSibling);
+          return;
+        }
       }
       // Fallback: keep the button usable even if the mic can't be found.
       const fallback = findSendButton() ?? document.querySelector('[contenteditable="true"]');
