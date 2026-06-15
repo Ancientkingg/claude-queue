@@ -279,27 +279,27 @@ async function navigateWithRetry(
       await page.context().addCookies(pwCookies);
       console.log(`  🍪 Seeded ${pwCookies.length} FlareSolverr cookies`);
 
-      // ── CRITICAL: Spoof User-Agent to match FlareSolverr's browser ────
-      // Cloudflare binds cf_clearance cookies to the solving browser's UA.
-      // If our navigator.userAgent differs, Cloudflare's JS detects the
-      // mismatch on SPA API calls and re-challenges (late challenge).
+      // ── CRITICAL: Match FlareSolverr's UA at both layers ────────────
+      // Cloudflare binds cf_clearance to a specific UA. We must match it:
+      //  1. HTTP header level — XHR/fetch carry the real User-Agent header
+      //  2. JS level — navigator.userAgent fingerprinting in Cloudflare's JS
       if (fsSolution.userAgent) {
         fsUserAgent = fsSolution.userAgent;
+        // Layer 1: Rewrite HTTP User-Agent on EVERY request via route interception.
+        // This is the critical fix — without it, SPA API calls carry the wrong UA.
+        await page.route('**/*', async (route) => {
+          const headers = await route.request().allHeaders();
+          headers['user-agent'] = fsUserAgent!;
+          await route.continue({ headers });
+        });
+        // Layer 2: Override navigator.userAgent for JS fingerprinting checks
         await page.addInitScript((ua: string) => {
           Object.defineProperty(navigator, 'userAgent', {
             get: () => ua,
             configurable: true,
           });
-          // Also override appVersion and platform for consistency
-          const appVersionMatch = ua.match(/Mozilla\/5\.0 \((.+?)\)/);
-          if (appVersionMatch) {
-            Object.defineProperty(navigator, 'platform', {
-              get: () => appVersionMatch[1].split(';')[0]?.trim() ?? '',
-              configurable: true,
-            });
-          }
         }, fsSolution.userAgent);
-        console.log(`  🎭 Spoofed navigator.userAgent to match FlareSolverr`);
+        console.log(`  🎭 Matched UA at HTTP header + JS level → FlareSolverr`);
       }
 
       // Navigate — Cloudflare should see matching UA + clearance cookie
@@ -427,16 +427,23 @@ export async function executeClaudePrompt(
           await page.context().addCookies(pwCookies);
           console.log(`  🍪 Re-seeded ${pwCookies.length} fresh FlareSolverr cookies`);
 
-          // If we got a new UA, spoof it too
+          // If we got a new UA, match it at both layers
           if (fsRetry.userAgent) {
             fsUserAgent = fsRetry.userAgent;
+            // Clear old routes; install fresh header-rewriting + JS override
+            await page.unrouteAll({ behavior: 'ignoreErrors' });
+            await page.route('**/*', async (route) => {
+              const headers = await route.request().allHeaders();
+              headers['user-agent'] = fsUserAgent!;
+              await route.continue({ headers });
+            });
             await page.addInitScript((ua: string) => {
               Object.defineProperty(navigator, 'userAgent', {
                 get: () => ua,
                 configurable: true,
               });
             }, fsRetry.userAgent);
-            console.log(`  🎭 Updated UA spoof to match fresh FlareSolverr session`);
+            console.log(`  🎭 Matched fresh FS UA at HTTP header + JS level`);
           }
 
           // Reload the page with fresh cookies
