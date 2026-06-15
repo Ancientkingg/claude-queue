@@ -34,12 +34,12 @@ export const QueueButton: React.FC = () => {
       <button
         onClick={() => setIsModalOpen(true)}
         title="Queue message for later"
-        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-claude-orange/10 hover:bg-claude-orange/20 text-claude-orange transition-colors border border-claude-orange/20 hover:border-claude-orange/40"
-        style={{ marginLeft: '4px', marginRight: '4px' }}
+        className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-claude-orange/20 to-claude-orange/10 hover:from-claude-orange/30 hover:to-claude-orange/15 text-claude-orange hover:text-claude-orange/90 transition-all duration-150 border border-claude-orange/30 hover:border-claude-orange/50 shadow-sm hover:shadow-md"
+        style={{ marginLeft: '6px', marginRight: '6px', flexShrink: 0 }}
       >
         <svg
-          width="16"
-          height="16"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

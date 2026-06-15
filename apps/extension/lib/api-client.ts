@@ -89,7 +89,7 @@ export interface CreateJobPayload {
     fileName: string;
     mimeType: string;
   }>;
-  scheduledAt?: string; // ISO 8601
+  scheduledFor?: string; // ISO 8601
   delaySeconds?: number;
 }
 

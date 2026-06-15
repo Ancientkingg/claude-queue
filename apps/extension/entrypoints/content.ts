@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import { QueueButton } from '@/components/QueueButton';
+import '@/assets/styles.css';
 
 export default defineContentScript({
   matches: ['https://claude.ai/*'],

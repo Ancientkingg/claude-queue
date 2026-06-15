@@ -123,7 +123,7 @@ async function handleQueueJob(config: ScheduleConfig) {
   };
 
   if (config.scheduledAt) {
-    payload.scheduledAt = config.scheduledAt;
+    payload.scheduledFor = config.scheduledAt;
   } else if (config.delaySeconds) {
     payload.delaySeconds = config.delaySeconds;
   }
