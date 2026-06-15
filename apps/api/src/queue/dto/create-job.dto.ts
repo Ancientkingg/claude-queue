@@ -22,7 +22,7 @@ export const AttachmentInputSchema = z.object({
 
 export const CreateJobSchema = z.object({
   accountId: z.string().uuid('accountId must be a valid UUID'),
-  conversationId: z.string().optional(),
+  conversationId: z.string().nullable().optional(),
   modelTarget: z.string().min(1).max(100, 'modelTarget is required'),
   promptText: z.string().min(1, 'promptText is required').max(100_000),
   thinkingMode: z.boolean().optional().default(false),
