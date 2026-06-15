@@ -175,6 +175,10 @@ export async function startConsumer(): Promise<Worker> {
     },
   );
 
+  worker.on('active', (job: Job) => {
+    console.log(`▶️  Job ${job.id} picked up from queue "${QUEUE_NAME}" (attempt ${job.attemptsMade + 1})`);
+  });
+
   worker.on('completed', (job: Job) => {
     console.log(`✅ Job ${job.id} completed successfully`);
   });
@@ -205,6 +209,7 @@ export async function startConsumer(): Promise<Worker> {
 
   // Wait for the worker to be ready
   await worker.waitUntilReady();
+  console.log(`✅ Worker ready and listening for jobs on queue "${QUEUE_NAME}"`);
 
   return worker;
 }

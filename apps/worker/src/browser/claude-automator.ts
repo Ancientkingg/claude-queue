@@ -34,7 +34,10 @@ export async function executeClaudePrompt(
       : 'https://claude.ai/new';
 
     console.log(`  📄 Navigating to ${url}`);
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
+    // Use 'domcontentloaded' rather than 'networkidle': claude.ai holds long-lived
+    // SSE/WebSocket connections open, so the network never goes idle and 'networkidle'
+    // would reliably hit the timeout. Readiness is confirmed below via the editor selector.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
     // 2. Check for Cloudflare challenge or login wall
     const blockResult = await checkForBlock(page);

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node --esm src/main.ts",
+    "dev": "ts-node --esm src/index.ts",
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {

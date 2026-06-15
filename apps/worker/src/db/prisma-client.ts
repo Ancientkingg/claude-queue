@@ -6,12 +6,15 @@ const prisma = new PrismaClient({
   log: ['warn', 'error'],
 });
 
+console.log(`🗄️  Prisma client initialized (db: ${config.databaseUrl.replace(/\/\/.*@/, '//<redacted>@')})`);
+
 export { prisma };
 
 /**
  * Fetch a QueuedMessage by ID, including its Account and Attachments.
  */
 export async function getJobById(id: string) {
+  console.log(`  🔍 DB: fetching job ${id}`);
   return prisma.queuedMessage.findUnique({
     where: { id },
     include: {
@@ -28,6 +31,7 @@ export async function updateJobStatus(
   id: string,
   status: string,
 ): Promise<void> {
+  console.log(`  📝 DB: updating job ${id} status → ${status}`);
   await prisma.queuedMessage.update({
     where: { id },
     data: { status },
@@ -41,6 +45,7 @@ export async function updateAccountStatus(
   id: string,
   status: string,
 ): Promise<void> {
+  console.log(`  📝 DB: updating account ${id} status → ${status}`);
   await prisma.account.update({
     where: { id },
     data: { status },

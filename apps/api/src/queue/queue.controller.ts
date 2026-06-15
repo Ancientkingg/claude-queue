@@ -8,6 +8,7 @@ import {
   BadRequestException,
   HttpCode,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { QueueService } from './queue.service.js';
 import { CreateJobSchema } from './dto/create-job.dto.js';
@@ -15,6 +16,8 @@ import type { ZodError } from 'zod';
 
 @Controller('jobs')
 export class QueueController {
+  private readonly logger = new Logger(QueueController.name);
+
   constructor(private readonly queueService: QueueService) {}
 
   @Post()
@@ -24,6 +27,7 @@ export class QueueController {
 
     if (!parsed.success) {
       const zodError = parsed.error as ZodError;
+      this.logger.warn(`❌ Job validation failed: ${zodError.errors.map(e => e.message).join(', ')}`);
       throw new BadRequestException({
         message: 'Validation failed',
         errors: zodError.errors.map((e) => ({
@@ -33,7 +37,14 @@ export class QueueController {
       });
     }
 
+    this.logger.log(`📝 Creating job for account ${parsed.data.accountId}`);
+    this.logger.debug(`   Model: ${parsed.data.modelTarget}, Thinking: ${parsed.data.thinkingMode}`);
+    this.logger.debug(`   Prompt: "${parsed.data.promptText.substring(0, 100)}${parsed.data.promptText.length > 100 ? '...' : ''}"`);
+    this.logger.debug(`   Attachments: ${parsed.data.attachments.length}`);
+
     const job = await this.queueService.createJob(parsed.data);
+
+    this.logger.log(`✅ Job ${job.id} created, status: ${job.status}`);
 
     return {
       id: job.id,
@@ -71,6 +82,8 @@ export class QueueController {
 
     const result = await this.queueService.findAll(pageNum, limitNum);
 
+    this.logger.log(`📋 Listed ${result.items.length}/${result.total} jobs (page ${pageNum})`);
+
     return {
       ...result,
       items: result.items.map((job) => ({
@@ -96,7 +109,10 @@ export class QueueController {
 
   @Get(':id')
   async getJob(@Param('id') id: string) {
+    this.logger.log(`🔍 Getting job ${id}`);
     const job = await this.queueService.findById(id);
+
+    this.logger.debug(`   Job ${id} status: ${job.status}`);
 
     return {
       id: job.id,
