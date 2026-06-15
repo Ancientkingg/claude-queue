@@ -20,6 +20,14 @@ describe('parseResetTimestamp', () => {
     expect(parseResetTimestamp(iso, NOW)).toBe(Date.parse(iso));
   });
 
+  it('parses the real /usage shape (microseconds + numeric offset)', () => {
+    const real = '2026-06-15T18:50:01.028967+00:00';
+    const ms = parseResetTimestamp(real, NOW);
+    expect(ms).not.toBeNull();
+    // Truncated to ms precision; equals the seconds boundary + 28ms.
+    expect(ms).toBe(Date.UTC(2026, 5, 15, 18, 50, 1, 28));
+  });
+
   it('returns null for empty / garbage / nullish', () => {
     expect(parseResetTimestamp('', NOW)).toBeNull();
     expect(parseResetTimestamp('   ', NOW)).toBeNull();
