@@ -34,6 +34,28 @@ const MODEL_SUGGESTIONS = [
 const DEFAULT_OFFSET_MS = 120_000; // 2 min
 const DEFAULT_JITTER_S = 90;       // 0–90s
 
+// ── Date/time helpers (for the "Specific time" picker) ───────────────────────────
+
+/** Format a Date as the local value a <input type="datetime-local"> expects. */
+function toLocalInputValue(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** Quick presets for the absolute picker, each returning a concrete Date. */
+const TIME_PRESETS: { label: string; make: () => Date }[] = [
+  { label: 'In 1 hour', make: () => new Date(Date.now() + 60 * 60_000) },
+  { label: 'In 3 hours', make: () => new Date(Date.now() + 3 * 60 * 60_000) },
+  {
+    label: 'Tonight 9 PM',
+    make: () => { const d = new Date(); d.setHours(21, 0, 0, 0); if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1); return d; },
+  },
+  {
+    label: 'Tomorrow 9 AM',
+    make: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; },
+  },
+];
+
 // ── Theme ──────────────────────────────────────────────────────────────────────
 
 const CL = {
@@ -66,7 +88,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     setMode('session');
     setOffsetMs(DEFAULT_OFFSET_MS);
     setJitterSeconds(DEFAULT_JITTER_S);
-    setScheduledAt('');
+    setScheduledAt(toLocalInputValue(new Date(Date.now() + 60 * 60_000))); // default: +1h
     setIsSubmitting(false);
 
     let cancelled = false;
@@ -243,10 +265,33 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
           {mode === 'absolute' && (
             <div>
               <span style={label}>Send at</span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 10 }}>
+                {TIME_PRESETS.map((p) => {
+                  const v = toLocalInputValue(p.make());
+                  return (
+                    <button key={p.label} onClick={() => setScheduledAt(v)} style={chip(scheduledAt === v)}>
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
               <input
-                type="datetime-local" value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)} style={input}
+                type="datetime-local"
+                value={scheduledAt}
+                min={toLocalInputValue(new Date())}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                style={input}
               />
+              {scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime()) && (
+                <div style={{ fontSize: 13, color: CL.green, marginTop: 10 }}>
+                  {new Date(scheduledAt).getTime() <= Date.now()
+                    ? '⚠ That time is in the past'
+                    : 'Will send ' + new Date(scheduledAt).toLocaleString([], {
+                        weekday: 'short', month: 'short', day: 'numeric',
+                        hour: 'numeric', minute: '2-digit',
+                      })}
+                </div>
+              )}
             </div>
           )}
 
