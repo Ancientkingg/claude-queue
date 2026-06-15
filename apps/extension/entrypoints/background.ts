@@ -61,7 +61,24 @@ export default defineBackground(() => {
 
 async function handleSyncSession() {
   const session = await harvestSession();
-  const response = await syncAccount(session);
+
+  // Try to extract account name from localStorage (claude.ai stores user profile)
+  let accountName = 'My Account';
+  const ls = session.localStorageSnapshot;
+  if (ls) {
+    // Claude.ai stores user info in various keys — try common ones
+    const raw = ls['user'] || ls['profile'] || ls['CurrentUser'];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        accountName = parsed?.name || parsed?.email || parsed?.full_name || accountName;
+      } catch {
+        // Not JSON
+      }
+    }
+  }
+
+  const response = await syncAccount(accountName, session);
 
   if (response.ok && response.data) {
     await setAccountId(response.data.accountId);

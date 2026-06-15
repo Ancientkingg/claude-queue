@@ -67,9 +67,13 @@ export interface SyncAccountResponse {
 }
 
 export async function syncAccount(
+  accountName: string,
   sessionProfile: AccountSessionProfile,
 ): Promise<ApiResponse<SyncAccountResponse>> {
-  return request<SyncAccountResponse>('POST', '/accounts/sync', sessionProfile);
+  return request<SyncAccountResponse>('POST', '/accounts/sync', {
+    accountName,
+    sessionProfile,
+  });
 }
 
 // === Job endpoints ===
