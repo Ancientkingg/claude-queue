@@ -1,8 +1,11 @@
+import type { ResetInfo } from './reset-parser';
+
 // --- Storage keys ---
 const BACKEND_URL_KEY = 'local:backendUrl';
 const ADMIN_TOKEN_KEY = 'local:adminToken';
 const ACCOUNT_ID_KEY = 'local:accountId';
 const ACCOUNT_NAME_KEY = 'local:accountName';
+const RESET_INFO_KEY = 'local:resetInfo';
 
 // --- Getters ---
 
@@ -38,6 +41,16 @@ export async function setAccountId(id: string): Promise<void> {
 
 export async function setAccountName(name: string): Promise<void> {
   await storage.setItem(ACCOUNT_NAME_KEY, name);
+}
+
+// --- Usage-reset info (captured from claude.ai rate-limit headers) ---
+
+export async function getResetInfo(): Promise<ResetInfo | null> {
+  return storage.getItem<ResetInfo>(RESET_INFO_KEY);
+}
+
+export async function setResetInfo(info: ResetInfo): Promise<void> {
+  await storage.setItem(RESET_INFO_KEY, info);
 }
 
 // --- Bulk operations ---
