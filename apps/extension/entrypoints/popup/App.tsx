@@ -38,6 +38,7 @@ export const App: React.FC = () => {
   });
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCreatingWorker, setIsCreatingWorker] = useState(false);
   const [message, setMessage] = useState<{
     text: string;
     type: 'success' | 'error';
@@ -126,6 +127,31 @@ export const App: React.FC = () => {
       );
     } finally {
       setIsSyncing(false);
+    }
+  }, []);
+
+  const handleCreateWorkerSession = useCallback(async () => {
+    setIsCreatingWorker(true);
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'CREATE_WORKER_SESSION',
+      });
+      if (response?.ok) {
+        showMessage(
+          'Worker session created! Worker now uses its own login.',
+          'success',
+        );
+        await refreshStatus();
+      } else {
+        showMessage(response?.error ?? 'Worker session creation failed', 'error');
+      }
+    } catch (err) {
+      showMessage(
+        err instanceof Error ? err.message : 'Worker session creation failed',
+        'error',
+      );
+    } finally {
+      setIsCreatingWorker(false);
     }
   }, []);
 
@@ -250,6 +276,17 @@ export const App: React.FC = () => {
         >
           {isSyncing ? 'Syncing...' : '🔗 Pair Account'}
         </button>
+
+        {/* Create Worker Session (separate login for the worker) */}
+        {status.accountId && (
+          <button
+            onClick={handleCreateWorkerSession}
+            disabled={isCreatingWorker}
+            className="w-full px-4 py-2 bg-claude-surface hover:bg-claude-border border border-claude-border text-claude-text font-medium rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isCreatingWorker ? 'Creating...' : '🔐 Create Worker Session'}
+          </button>
+        )}
 
         {/* Account Info */}
         {status.accountName && (

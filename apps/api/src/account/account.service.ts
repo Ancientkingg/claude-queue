@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { SyncAccountDto } from './dto/sync-account.dto.js';
+import type { SyncWorkerSessionDto } from './dto/sync-worker-session.dto.js';
 import type { Account } from '@prisma/client';
 
 @Injectable()
@@ -33,6 +34,33 @@ export class AccountService {
       data: {
         account_name: dto.accountName,
         session_profile: dto.sessionProfile as object,
+        status: 'ACTIVE',
+      },
+    });
+  }
+
+  /**
+   * Store a dedicated worker session profile for an account, so the worker
+   * can use an independent claude.ai login that won't invalidate the user's
+   * interactive session cookie.
+   */
+  async syncWorkerSession(dto: SyncWorkerSessionDto): Promise<Account> {
+    const account = await this.prisma.account.findUnique({
+      where: { id: dto.accountId },
+    });
+
+    if (!account) {
+      throw new NotFoundException(`Account with id "${dto.accountId}" not found`);
+    }
+
+    this.logger.log(
+      `Storing worker session for account "${account.account_name}" (${account.id})`,
+    );
+
+    return this.prisma.account.update({
+      where: { id: dto.accountId },
+      data: {
+        worker_session_profile: dto.workerSessionProfile as object,
         status: 'ACTIVE',
       },
     });

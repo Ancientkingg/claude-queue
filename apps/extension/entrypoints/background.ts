@@ -1,6 +1,7 @@
-import { harvestSession } from '@/lib/session-harvester';
+import { harvestSession, harvestWorkerSession } from '@/lib/session-harvester';
 import {
   syncAccount,
+  syncWorkerSession,
   createJob,
   listJobs,
   healthCheck,
@@ -54,6 +55,9 @@ export default defineBackground(() => {
 
             case 'LIST_QUEUED_JOBS':
               return await handleListQueuedJobs();
+
+            case 'CREATE_WORKER_SESSION':
+              return await handleCreateWorkerSession();
 
             case 'CANCEL_JOB':
               return await handleCancelJob(message.payload as { id: string });
@@ -280,6 +284,42 @@ async function handleCancelJob(payload: { id: string }) {
   const res = await cancelJob(payload.id);
   if (res.ok) return { ok: true };
   return { ok: false, status: res.status, error: `Cancel failed (HTTP ${res.status})` };
+}
+
+async function handleCreateWorkerSession() {
+  try {
+    // 1. Open incognito window and harvest the worker session
+    const session = await harvestWorkerSession();
+
+    // 2. Get the account ID from storage
+    const accountId = await getAccountId();
+    if (!accountId) {
+      return {
+        ok: false,
+        error: 'No account paired. Pair your account first.',
+      };
+    }
+
+    // 3. Send to API
+    const response = await syncWorkerSession(accountId, session);
+
+    if (response.ok && response.data) {
+      return {
+        ok: true,
+        accountId: response.data.accountId,
+        hasWorkerSession: response.data.hasWorkerSession,
+      };
+    }
+
+    return {
+      ok: false,
+      error: `Worker session sync failed (HTTP ${response.status})`,
+    };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[Claude Queue] Worker session creation failed:', err);
+    return { ok: false, error: errorMsg };
+  }
 }
 
 async function handleHealthCheck() {

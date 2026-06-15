@@ -8,12 +8,13 @@ datasource db {
 }
 
 model Account {
-  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  account_name    String          @unique
-  session_profile Json
-  status          String          @default("ACTIVE")
-  created_at      DateTime        @default(now())
-  messages        QueuedMessage[]
+  id                      String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_name            String          @unique
+  session_profile         Json
+  worker_session_profile  Json?
+  status                  String          @default("ACTIVE")
+  created_at              DateTime        @default(now())
+  messages                QueuedMessage[]
 }
 
 model QueuedMessage {

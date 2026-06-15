@@ -76,6 +76,25 @@ export async function syncAccount(
   });
 }
 
+// === Worker session ===
+
+export interface SyncWorkerSessionResponse {
+  accountId: string;
+  accountName: string;
+  status: string;
+  hasWorkerSession: boolean;
+}
+
+export async function syncWorkerSession(
+  accountId: string,
+  workerSessionProfile: AccountSessionProfile,
+): Promise<ApiResponse<SyncWorkerSessionResponse>> {
+  return request<SyncWorkerSessionResponse>('POST', '/accounts/sync-worker-session', {
+    accountId,
+    workerSessionProfile,
+  });
+}
+
 // === Job endpoints ===
 
 export interface CreateJobPayload {

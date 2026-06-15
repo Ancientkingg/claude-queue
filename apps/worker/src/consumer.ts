@@ -59,10 +59,16 @@ async function processJob(job: Job): Promise<void> {
     throw new Error(`Job ${payload.jobId} not found in database`);
   }
 
-  // 4. Validate the session profile
-  const sessionParseResult = AccountSessionProfileSchema.safeParse(
-    dbRecord.account.session_profile,
-  );
+  // 4. Select the session profile: prefer the dedicated worker session
+  //    (separate claude.ai login, won't invalidate user's interactive session),
+  //    fall back to the user's session profile for backward compatibility.
+  const account = dbRecord.account as any;
+  const rawProfile: unknown =
+    account.worker_session_profile ?? account.session_profile;
+  const usingWorkerSession = account.worker_session_profile != null;
+  console.log(`  🔑 Using ${usingWorkerSession ? 'worker' : 'user'} session profile`);
+
+  const sessionParseResult = AccountSessionProfileSchema.safeParse(rawProfile);
   if (!sessionParseResult.success) {
     console.error(
       '  ❌ Invalid session profile:',
