@@ -143,14 +143,10 @@ export default defineContentScript({
             location.reload();
             return;
           }
-          // The user is on /new and a new-chat job completed —
-          // the job now has a conversationId, so navigate there.
-          if (!conversationId && pathname === '/new' && job.conversationId) {
+          // Don't auto-navigate from /new — the user may be composing
+          // a new prompt and shouldn't be yanked away.
+          if (pathname === '/new') {
             completedHandlerStore.remove(job.id);
-            console.log('[Claude Queue] New chat completed, navigating...');
-            history.pushState(null, '', `/chat/${job.conversationId}`);
-            window.dispatchEvent(new PopStateEvent('popstate'));
-            window.dispatchEvent(new CustomEvent('cq:nav'));
             return;
           }
         }
