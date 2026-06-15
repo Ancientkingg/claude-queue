@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { QueueStore, QueuedJob } from '@/lib/queue-store';
 
 /** Subscribe to the QueueStore; re-renders on any store change. */
@@ -8,14 +8,35 @@ export function useQueueJobs(store: QueueStore): QueuedJob[] {
   return jobs;
 }
 
-/** Track the SPA pathname; updates on the 'cq:nav' event dispatched by content.ts. */
+/** Track the SPA pathname. Primary signal: 'cq:nav' custom event from content.ts.
+ *  Safety nets: popstate listener + periodic polling so the path never goes stale
+ *  even if a page transition doesn't fire our custom event. */
 export function useLocationPath(): string {
   const [path, setPath] = useState(location.pathname);
+  const pathRef = useRef(path);
+  pathRef.current = path;
+
   useEffect(() => {
-    const h = () => setPath(location.pathname);
-    window.addEventListener('cq:nav', h);
-    return () => window.removeEventListener('cq:nav', h);
-  }, []);
+    const update = () => {
+      const current = location.pathname;
+      if (current !== pathRef.current) setPath(current);
+    };
+
+    // Primary: custom event dispatched by content.ts nav interception
+    window.addEventListener('cq:nav', update);
+    // Safety net: native popstate (SPA back/forward without our interception)
+    window.addEventListener('popstate', update);
+
+    // Safety net: poll location.pathname every 500ms so we never miss a change
+    const interval = setInterval(update, 500);
+
+    return () => {
+      window.removeEventListener('cq:nav', update);
+      window.removeEventListener('popstate', update);
+      clearInterval(interval);
+    };
+  }, []); // stable effect — uses pathRef to avoid stale closure
+
   return path;
 }
 

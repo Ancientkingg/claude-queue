@@ -117,6 +117,10 @@ export default defineContentScript({
     mountQueuedSidebar(store);
     mountPseudoChat(store);
 
+    // Dispatch an initial nav event so all useLocationPath hooks sync to the
+    // current URL immediately, even before the first SPA navigation fires.
+    window.dispatchEvent(new CustomEvent('cq:nav'));
+
     console.log('[Claude Queue] UI mounted');
   },
 });
@@ -169,13 +173,22 @@ function mountQueuedBubbles(store: QueueStore) {
 
   const ensure = () => {
     if (wrapper.isConnected) return;
-    // Anchor: just above the input composer (the contenteditable's scroll/flex
-    // ancestor), so bubbles appear at the end of the thread. Walk up to a wide
-    // container and insert before the composer block.
-    const editable = document.querySelector('[contenteditable="true"]');
-    const composer = editable?.closest('div[class*="mx-"]') ?? editable?.parentElement?.parentElement;
-    if (composer?.parentElement) {
-      composer.parentElement.insertBefore(wrapper, composer);
+    // Anchor: inside the message scroll container at the end of the thread,
+    // before the sticky chat input. This places bubbles among real messages
+    // instead of below the Fable banner in the composer area.
+    const scroll = document.querySelector('[data-autoscroll-container="true"]');
+    if (!scroll) return;
+    // The scroll container has an inner flex-col div that holds messages + input.
+    const inner = scroll.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+    // The sticky chat input is the last child of the inner container; insert
+    // bubbles right before it so they sit at the end of the message list.
+    const inputContainer = inner.querySelector('[data-chat-input-container="true"]');
+    if (inputContainer) {
+      inner.insertBefore(wrapper, inputContainer);
+    } else {
+      // Fallback: append to the end of the inner container.
+      inner.appendChild(wrapper);
     }
   };
   ensure();
@@ -196,29 +209,58 @@ function mountQueuedSidebar(store: QueueStore) {
 
   const ensure = () => {
     if (wrapper.isConnected) return;
-    // Anchor: inside the sidebar nav, before the chat list. Use the "Chats"
-    // link (href="/recents") which is always present; fall back to any nav
-    // link, then the nav itself.
+    // Anchor: inside the sidebar nav, between the "Products" section and the
+    // "Recents" section. Find the Recents header (an h2 or similar with text
+    // "Recents"), walk up to its containing group div, and insert before it.
+    const nav = document.querySelector('nav[aria-label="Sidebar"]');
+    if (!nav) return;
+
+    // Look for the Recents section header — an element whose text is "Recents"
+    // inside an h2 or a role="button" span within the sidebar.
+    const all = nav.querySelectorAll('h2, [role="button"]');
+    for (const el of all) {
+      if (el.textContent?.trim() === 'Recents') {
+        // The Recents header is inside a collapsible section. Walk up to the
+        // section wrapper (the closest parent that also contains the <ul>).
+        const section = el.closest('div[class*="flex"][class*="flex-col"]') ?? el.parentElement?.parentElement;
+        if (section?.parentElement) {
+          section.parentElement.insertBefore(wrapper, section);
+          return;
+        }
+        // Fallback: insert right before the header's container
+        const container = el.parentElement?.parentElement;
+        if (container?.parentElement) {
+          container.parentElement.insertBefore(wrapper, container);
+          return;
+        }
+      }
+    }
+
+    // Fallback: if we can't find Recents, anchor after the Products section.
+    // Find Products heading and insert after its section group.
+    for (const el of all) {
+      if (el.textContent?.trim() === 'Products') {
+        const section = el.closest('div[class*="flex"][class*="flex-col"]') ?? el.parentElement?.parentElement;
+        if (section?.parentElement) {
+          section.parentElement.insertBefore(wrapper, section.nextSibling);
+          return;
+        }
+      }
+    }
+
+    // Last resort: anchor before the "Chats" link (original behavior).
     const chatsLink = document.querySelector('nav a[href="/recents"]');
     if (chatsLink) {
-      // Insert our section right before the Chats link's parent list container.
       const list = chatsLink.parentElement;
       if (list?.parentElement) {
         list.parentElement.insertBefore(wrapper, list);
         return;
       }
     }
-    // Fallback: find the sidebar nav and insert at the top of its scroll area.
-    const nav = document.querySelector('nav[aria-label="Sidebar"]');
-    if (nav) {
-      // The nav has a header div then a scrollable flex-grow div — find the
-      // second child and insert our section there.
-      const scrollArea = nav.children[1] ?? nav.firstElementChild;
-      if (scrollArea) {
-        scrollArea.insertBefore(wrapper, scrollArea.firstChild);
-        return;
-      }
-      nav.insertBefore(wrapper, nav.firstChild);
+    // Ultimate fallback: top of the scroll area.
+    const scrollArea = nav.children[1] ?? nav.firstElementChild;
+    if (scrollArea) {
+      scrollArea.insertBefore(wrapper, scrollArea.firstChild);
     }
   };
   ensure();

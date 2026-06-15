@@ -53,7 +53,7 @@ async function bootstrap() {
       logger.warn(`🚫 CORS blocked origin: ${origin}`);
       return callback(null, false);
     },
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86400,
   });
