@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import { QueueButton } from '@/components/QueueButton';
-import '@/assets/styles.css';
+import '@/assets/content.css';
 
 export default defineContentScript({
   matches: ['https://claude.ai/*'],
@@ -32,22 +32,19 @@ export default defineContentScript({
       },
     );
 
-    // Wait for the Claude chat UI to load, then inject the Queue button
-    await waitForElement(
-      'button[aria-label="Send Message"], button[data-testid="send-button"], form button[type="submit"]',
-    );
+    // Find a suitable anchor — Claude.ai is a React SPA so we must wait for render
+    const anchor = await findAnchor();
 
-    const ui = await createShadowRootUi(ctx, {
+    const ui = await createIntegratedUi(ctx, {
       name: 'claude-queue-button',
       position: 'inline',
-      anchor:
-        'button[aria-label="Send Message"], button[data-testid="send-button"], form button[type="submit"]',
-      append: 'before',
-      onMount(container: any) {
-        const wrapper = document.createElement('div');
+      anchor: anchor ?? document.body,
+      append: anchor ? 'before' : 'last',
+      onMount(container: HTMLElement) {
+        const wrapper = document.createElement('span');
         wrapper.id = 'claude-queue-root';
-        wrapper.style.display = 'inline-flex';
-        wrapper.style.alignItems = 'center';
+        wrapper.style.cssText =
+          'display:inline-flex;align-items:center;vertical-align:middle;flex-shrink:0;';
         container.append(wrapper);
 
         const root = createRoot(wrapper);
@@ -60,42 +57,73 @@ export default defineContentScript({
     });
 
     ui.mount();
+    console.log('[Claude Queue] UI mounted');
   },
 });
 
 /**
- * Wait for a DOM element to appear (polling with MutationObserver fallback).
+ * Find a suitable anchor element on claude.ai.
+ * The page is a React SPA — all DOM is rendered dynamically.
  */
-function waitForElement(selector: string, timeoutMs = 30000): Promise<Element> {
-  return new Promise((resolve, reject) => {
-    // Check if already present
+async function findAnchor(): Promise<Element | null> {
+  const SELECTORS = [
+    // Claude.ai send button
+    'button[aria-label="Send Message"]',
+    'button[data-testid="send-button"]',
+    'button[aria-label="Send"]',
+    // Any submit button inside a form (chat input bar)
+    'form button[type="submit"]',
+    // Contenteditable input areas (the prompt box)
+    '[contenteditable="true"]',
+    '[data-placeholder]',
+    // Textareas
+    'textarea[placeholder*="Message" i]',
+    'textarea[placeholder*="Claude" i]',
+    // ProseMirror editor (used by some chat UIs)
+    '.ProseMirror',
+    'div[class*="ProseMirror"]',
+  ];
+
+  for (const selector of SELECTORS) {
+    const el = await waitForElement(selector, 8000);
+    if (el) {
+      console.log(`[Claude Queue] Anchor found: "${selector}"`);
+      return el;
+    }
+  }
+
+  console.warn('[Claude Queue] No anchor found — injecting at end of body');
+  return null;
+}
+
+/**
+ * Wait for a DOM element matching `selector` to appear.
+ * Returns null on timeout instead of throwing.
+ */
+function waitForElement(selector: string, timeoutMs: number): Promise<Element | null> {
+  return new Promise((resolve) => {
     const existing = document.querySelector(selector);
     if (existing) {
       resolve(existing);
       return;
     }
 
-    const timeout = setTimeout(() => {
+    let settled = false;
+    const done = (el: Element | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       observer.disconnect();
-      reject(
-        new Error(
-          `[Claude Queue] Timed out waiting for element: ${selector}`,
-        ),
-      );
-    }, timeoutMs);
+      resolve(el);
+    };
 
-    const observer = new MutationObserver((_mutations, obs) => {
+    const timer = setTimeout(() => done(null), timeoutMs);
+
+    const observer = new MutationObserver(() => {
       const el = document.querySelector(selector);
-      if (el) {
-        clearTimeout(timeout);
-        obs.disconnect();
-        resolve(el);
-      }
+      if (el) done(el);
     });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
   });
 }

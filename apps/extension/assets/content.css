@@ -1,0 +1,3 @@
+/* Content-script-only Tailwind: no base reset to avoid breaking claude.ai's layout */
+@tailwind components;
+@tailwind utilities;

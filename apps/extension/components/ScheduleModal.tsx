@@ -135,7 +135,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 space-y-4">
+        <div className="px-5 py-4 flex flex-col gap-4">
           {/* Schedule Mode Toggle */}
           <div>
             <label className="block text-sm font-medium text-claude-text mb-2">
