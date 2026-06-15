@@ -59,6 +59,9 @@ export default defineBackground(() => {
             case 'CREATE_WORKER_SESSION':
               return await handleCreateWorkerSession();
 
+            case 'CHECK_COMPLETED_JOBS':
+              return await handleCheckCompletedJobs();
+
             case 'CANCEL_JOB':
               return await handleCancelJob(message.payload as { id: string });
 
@@ -319,6 +322,43 @@ async function handleCreateWorkerSession() {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
     console.error('[Claude Queue] Worker session creation failed:', err);
     return { ok: false, error: errorMsg };
+  }
+}
+
+// Track which job completions we've already reported so we don't keep
+// triggering page refreshes for the same job.
+const reportedCompletions = new Set<string>();
+
+async function handleCheckCompletedJobs() {
+  const accountId = await getAccountId();
+  if (!accountId) return { ok: true, jobs: [] };
+
+  try {
+    const res = await listQueuedJobs({ accountId, status: 'COMPLETED', limit: 10 });
+    if (!res.ok || !res.data) return { ok: true, jobs: [] };
+
+    const completed = res.data.items
+      .filter((it) => !reportedCompletions.has(it.id))
+      .map((it) => ({
+        id: it.id,
+        conversationId: it.conversationId,
+        promptText: it.promptText,
+      }));
+
+    // Mark them as seen so we don't re-trigger
+    for (const job of completed) {
+      reportedCompletions.add(job.id);
+    }
+    // Prune the set if it gets too large
+    if (reportedCompletions.size > 500) {
+      const entries = [...reportedCompletions];
+      reportedCompletions.clear();
+      for (const id of entries.slice(-100)) reportedCompletions.add(id);
+    }
+
+    return { ok: true, jobs: completed };
+  } catch {
+    return { ok: true, jobs: [] };
   }
 }
 

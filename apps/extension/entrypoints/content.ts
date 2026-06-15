@@ -121,6 +121,44 @@ export default defineContentScript({
     // current URL immediately, even before the first SPA navigation fires.
     window.dispatchEvent(new CustomEvent('cq:nav'));
 
+    // — Auto-refresh when a queued job completes ————————————————
+    // Poll for completed jobs every 5 s.  When one matches the
+    // current conversation, reload the page so the SPA fetches the
+    // new message.
+    const completedHandlerStore = store;
+    let lastCompletedHref = '';
+    const completedInterval = setInterval(async () => {
+      try {
+        const res = await browser.runtime.sendMessage({ type: 'CHECK_COMPLETED_JOBS' });
+        if (!res?.ok || !res.jobs?.length) return;
+
+        const pathname = location.pathname;
+        const conversationId = (/\/chat\/([0-9a-f-]{36})/i).exec(pathname)?.[1] ?? null;
+
+        for (const job of res.jobs) {
+          // This job was queued for this conversation
+          if (conversationId && job.conversationId === conversationId) {
+            completedHandlerStore.remove(job.id);
+            console.log('[Claude Queue] Completed job matched, reloading page...');
+            location.reload();
+            return;
+          }
+          // The user is on /new and a new-chat job completed —
+          // the job now has a conversationId, so navigate there.
+          if (!conversationId && pathname === '/new' && job.conversationId) {
+            completedHandlerStore.remove(job.id);
+            console.log('[Claude Queue] New chat completed, navigating...');
+            history.pushState(null, '', `/chat/${job.conversationId}`);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            window.dispatchEvent(new CustomEvent('cq:nav'));
+            return;
+          }
+        }
+      } catch { /* ignore transient errors */ }
+    }, 5_000);
+    // Cleanup on SPA navigations that may re-init the content script
+    window.addEventListener('beforeunload', () => clearInterval(completedInterval));
+
     console.log('[Claude Queue] UI mounted');
   },
 });
