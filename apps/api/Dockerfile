@@ -56,4 +56,4 @@ EXPOSE 3000
 # Run from the api directory
 WORKDIR /app/apps/api
 
-CMD ["sh", "-c", "pnpm exec prisma db push --skip-generate && node dist/main.js"]
+CMD ["sh", "-c", "pnpm exec prisma db push --accept-data-loss --skip-generate && node dist/main.js"]
