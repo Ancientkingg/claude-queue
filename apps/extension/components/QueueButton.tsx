@@ -32,18 +32,18 @@ export const QueueButton: React.FC = () => {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    border: '1px solid rgba(218, 119, 86, 0.3)',
-    background: 'rgba(218, 119, 86, 0.12)',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: 'none',
+    background: 'transparent',
     color: '#da7756',
     cursor: 'pointer',
-    marginLeft: 6,
-    marginRight: 6,
+    marginLeft: 2,
+    marginRight: 2,
     flexShrink: 0,
     padding: 0,
-    transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
+    transition: 'background 0.15s, color 0.15s',
     outline: 'none',
   };
 
@@ -54,12 +54,10 @@ export const QueueButton: React.FC = () => {
         title="Queue message for later"
         style={btnStyle}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(218, 119, 86, 0.22)';
-          e.currentTarget.style.borderColor = 'rgba(218, 119, 86, 0.5)';
+          e.currentTarget.style.background = 'rgba(218, 119, 86, 0.15)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'rgba(218, 119, 86, 0.12)';
-          e.currentTarget.style.borderColor = 'rgba(218, 119, 86, 0.3)';
+          e.currentTarget.style.background = 'transparent';
         }}
       >
         <svg
