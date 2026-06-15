@@ -28,11 +28,32 @@ const OFFSET_OPTIONS = [
   { label: '5 min', ms: 300_000 },
 ] as const;
 
-const MODEL_SUGGESTIONS = [
-  'claude-sonnet-4-20250514',
-  'claude-opus-4-20250514',
-  'claude-3-5-haiku-20241022',
+const MODEL_OPTIONS: { id: string; label: string }[] = [
+  { id: 'claude-sonnet-4-6',          label: 'Sonnet 4.6' },
+  { id: 'claude-opus-4-8',            label: 'Opus 4.8' },
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku 4.5' },
 ];
+
+/** Map a claude.ai model-selector display label to an API model ID. */
+function resolveModelId(displayLabel: string): string | null {
+  const lower = displayLabel.toLowerCase();
+  if (lower.includes('haiku'))  return 'claude-haiku-4-5-20251001';
+  if (lower.includes('sonnet')) return 'claude-sonnet-4-6';
+  if (lower.includes('opus'))   return 'claude-opus-4-8';
+  if (lower.includes('fable'))  return 'claude-fable-5';
+  return null;
+}
+
+/** Read the currently-selected model from claude.ai's model selector button.
+ *  Returns [modelId, thinkingEnabled] or [null, false] if undetectable. */
+function detectCurrentModel(): [string | null, boolean] {
+  const btn = document.querySelector<HTMLElement>('[data-testid="model-selector-dropdown"]');
+  if (!btn) return [null, false];
+  const label = (btn.getAttribute('aria-label') ?? btn.textContent ?? '').replace(/^Model:\s*/i, '').trim();
+  const thinking = /extended/i.test(label);
+  const modelId = resolveModelId(label);
+  return [modelId, thinking];
+}
 
 const DEFAULT_OFFSET_MS = 120_000; // 2 min
 const DEFAULT_JITTER_S = 90;       // 0–90s
@@ -66,7 +87,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
   const [offsetMs, setOffsetMs] = useState<number>(DEFAULT_OFFSET_MS);
   const [jitterSeconds, setJitterSeconds] = useState<number>(DEFAULT_JITTER_S);
   const [scheduledAt, setScheduledAt] = useState('');
-  const [modelTarget, setModelTarget] = useState(MODEL_SUGGESTIONS[0]);
+  const [modelTarget, setModelTarget] = useState(MODEL_OPTIONS[0].id);
   const [thinkingMode, setThinkingMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -80,6 +101,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     setJitterSeconds(DEFAULT_JITTER_S);
     setScheduledAt(toLocalInputValue(new Date(Date.now() + 60 * 60_000))); // default: +1h
     setIsSubmitting(false);
+
+    // Detect the currently-selected model from claude.ai's UI so the default
+    // matches what the user already has selected in the model dropdown.
+    const [detectedModel, detectedThinking] = detectCurrentModel();
+    if (detectedModel) {
+      setModelTarget(detectedModel);
+      setThinkingMode(detectedThinking);
+    } else {
+      setModelTarget(MODEL_OPTIONS[0].id);
+      setThinkingMode(false);
+    }
 
     let cancelled = false;
     let interval: ReturnType<typeof setInterval> | undefined;
@@ -290,7 +322,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
           <div>
             <span style={label}>Model</span>
             <select value={modelTarget} onChange={(e) => setModelTarget(e.target.value)} style={input}>
-              {MODEL_SUGGESTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+              {MODEL_OPTIONS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
           </div>
 
