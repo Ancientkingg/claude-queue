@@ -190,13 +190,16 @@ function mountQueuedBubbles(store: QueueStore) {
       return;
     }
     retries = 0; // found the container, reset retries for future re-anchors
-    const inputContainer = scroll.querySelector('[data-chat-input-container="true"]');
-    if (inputContainer) {
-      // inputContainer is not a direct child of scroll — insertBefore would
-      // throw NotFoundError. Use Element.before() to insert as a sibling
-      // regardless of nesting depth.
-      inputContainer.before(wrapper);
+    // Insert right after the last message turn — claude.ai wraps every user
+    // and assistant message in a [data-test-render-count] container inside
+    // a [content-visibility:auto] element. Anchoring after the last turn
+    // avoids the spacer divs that sit between messages and the sticky input.
+    const turns = scroll.querySelectorAll('[data-test-render-count]');
+    const lastTurn = turns[turns.length - 1] as HTMLElement | undefined;
+    if (lastTurn) {
+      lastTurn.after(wrapper);
     } else {
+      // No messages yet (fresh chat) — append to scroll container.
       scroll.appendChild(wrapper);
     }
   };
