@@ -71,11 +71,11 @@ const TIME_PRESETS: { label: string; make: () => Date }[] = [
   { label: 'In 1 hour', make: () => new Date(Date.now() + 60 * 60_000) },
   { label: 'In 3 hours', make: () => new Date(Date.now() + 3 * 60 * 60_000) },
   {
-    label: 'Tonight 9 PM',
+    label: 'Tonight 21:00',
     make: () => { const d = new Date(); d.setHours(21, 0, 0, 0); if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1); return d; },
   },
   {
-    label: 'Tomorrow 9 AM',
+    label: 'Tomorrow 09:00',
     make: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; },
   },
 ];
@@ -252,7 +252,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                 <div style={{ ...input, display: 'flex', alignItems: 'center', cursor: 'default' }}>
                   {resetAtMs == null
                     ? <span style={{ color: CL.muted }}>Waiting for claude.ai usage data…</span>
-                    : <span style={{ color: CL.text }}>{new Date(resetAtMs).toLocaleString()}</span>}
+                    : <span style={{ color: CL.text }}>{new Date(resetAtMs).toLocaleString('en-GB')}</span>}
                 </div>
               </div>
 
@@ -281,7 +281,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
               {/* Preview */}
               {previewMs != null && (
                 <div style={{ fontSize: 13, color: CL.green }}>
-                  Will send around {new Date(previewMs).toLocaleTimeString()} (±{jitterSeconds}s)
+                  Will send around {new Date(previewMs).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (±{jitterSeconds}s)
                 </div>
               )}
             </>
@@ -311,9 +311,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                 <div style={{ fontSize: 13, color: CL.green, marginTop: 10 }}>
                   {new Date(scheduledAt).getTime() <= Date.now()
                     ? '⚠ That time is in the past'
-                    : 'Will send ' + new Date(scheduledAt).toLocaleString([], {
-                        weekday: 'short', month: 'short', day: 'numeric',
-                        hour: 'numeric', minute: '2-digit',
+                    : 'Will send ' + new Date(scheduledAt).toLocaleString('en-GB', {
+                        weekday: 'short', day: 'numeric', month: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
                       })}
                 </div>
               )}
