@@ -11,7 +11,10 @@ import {
   setAccountId,
   setAccountName,
   getConfig,
+  getResetInfo,
+  setResetInfo,
 } from '@/lib/storage';
+import { parseResetHeader } from '@/lib/reset-parser';
 import type { ScheduleConfig } from '@/components/ScheduleModal';
 
 export default defineBackground(() => {
@@ -43,6 +46,9 @@ export default defineBackground(() => {
             case 'HEALTH_CHECK':
               return await handleHealthCheck();
 
+            case 'GET_RESET_TIME':
+              return await handleGetResetTime();
+
             default:
               return { ok: false, error: `Unknown message type: ${message.type}` };
           }
@@ -56,6 +62,29 @@ export default defineBackground(() => {
       handleAsync().then(sendResponse);
       return true; // Keep the message channel open for async response
     },
+  );
+
+  // Passively capture claude.ai's 5-hour usage-reset time from rate-limit
+  // response headers (Gaugr-style). claude.ai polls its own usage endpoints,
+  // so this populates within seconds of the tab being open.
+  browser.webRequest.onHeadersReceived.addListener(
+    (details) => {
+      const headers = details.responseHeaders ?? [];
+      let raw: string | undefined;
+      for (const h of headers) {
+        if (h.name.toLowerCase() === 'anthropic-ratelimit-unified-5h-reset') {
+          raw = h.value;
+          break;
+        }
+      }
+      const resetAtMs = parseResetHeader(raw);
+      if (resetAtMs != null) {
+        void setResetInfo({ resetAtMs, capturedAtMs: Date.now() });
+      }
+      return undefined;
+    },
+    { urls: ['https://claude.ai/api/*'] },
+    ['responseHeaders'],
   );
 });
 
@@ -124,8 +153,6 @@ async function handleQueueJob(config: ScheduleConfig) {
 
   if (config.scheduledAt) {
     payload.scheduledFor = config.scheduledAt;
-  } else if (config.delaySeconds) {
-    payload.delaySeconds = config.delaySeconds;
   }
 
   const response = await createJob(payload);
@@ -182,6 +209,14 @@ async function handleListJobs() {
     error: `Failed to list jobs (HTTP ${response.status})`,
     jobs: [],
   };
+}
+
+async function handleGetResetTime() {
+  const info = await getResetInfo();
+  if (info) {
+    return { ok: true, resetAtMs: info.resetAtMs, capturedAtMs: info.capturedAtMs };
+  }
+  return { ok: false, error: 'No reset time captured yet' };
 }
 
 async function handleHealthCheck() {
