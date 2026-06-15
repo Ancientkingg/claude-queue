@@ -65,9 +65,41 @@ async function humanClick(page: Page, locator: ReturnType<Page['locator']>): Pro
 }
 
 /**
- * Type text character by character with human-like inter-key delays.
- * Occasionally introduces and corrects a typo (~3% chance per character).
+ * Dismiss any open overlays, popovers, or dropdowns that might intercept
+ * pointer events on the editor.
+ *
+ * Strategy:
+ *  1. Press Escape a few times (triggers built-in close handlers).
+ *  2. Remove any remaining Base UI portal overlays (`data-base-ui-inert`)
+ *     from the DOM — these are inert backdrops that Playwright refuses to
+ *     click through, and Escape doesn't always close them.
+ *  3. Remove the `inert` attribute from any page elements that still have it.
  */
+async function dismissOverlays(page: Page): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Escape');
+    await humanDelay(150, 300);
+  }
+
+  // Remove stale portal overlays left behind by Base UI popovers/dialogs.
+  // These are <div role="presentation" data-base-ui-inert=""> inside portal
+  // containers — they block pointer events even after Escape closes the
+  // associated popover.
+  await page.evaluate(() => {
+    // Remove every inert overlay div living inside a Base UI portal
+    document.querySelectorAll('[data-base-ui-portal] [data-base-ui-inert]').forEach((el) => el.remove());
+    // Also remove the portal containers themselves if they're now empty
+    document.querySelectorAll('[data-base-ui-portal]').forEach((el) => {
+      if (el.children.length === 0) el.remove();
+    });
+    // Strip inert from any element that still has it (e.g. the main content
+    // was marked inert while a dialog was open)
+    document.querySelectorAll('[inert]').forEach((el) => el.removeAttribute('inert'));
+  });
+
+  await humanDelay(100, 200);
+}
+
 /**
  * Click into a contenteditable editor and type text character-by-character
  * with human-like inter-key delays.  Starts with a brief "thinking" pause
@@ -75,7 +107,17 @@ async function humanClick(page: Page, locator: ReturnType<Page['locator']>): Pro
  * Introduces and corrects a typo ~3% of the time per character.
  */
 async function humanType(page: Page, locator: ReturnType<Page['locator']>, text: string): Promise<void> {
-  await humanClick(page, locator);
+  // Dismiss any open overlays (model dropdown, nudge banners, etc.) that
+  // would intercept pointer events on the editor.
+  await dismissOverlays(page);
+
+  // Try normal click first; if an overlay still blocks pointer events, force it.
+  try {
+    await locator.click({ timeout: 5_000 });
+  } catch {
+    console.log('  ⚠️  Normal click blocked by overlay, using force click');
+    await locator.click({ force: true });
+  }
 
   // Brief "thinking" pause — a real person reads what they're about to type
   await humanDelay(200, 800);
@@ -344,9 +386,9 @@ async function navigateWithRetry(
 
     console.log(`  🚫 Blocked: ${block} (attempt ${attempt}/${maxAttempts})`);
 
-    if (block === 'SESSION_EXIRED') {
+    if (block === 'SESSION_EXPIRED') {
       // Don't retry on expired sessions — no amount of solving will fix this
-      throw new Error('SESSION_EXIRED');
+      throw new Error('SESSION_EXPIRED');
     }
 
     // Try auto-resolve first (non-interactive challenges may pass on their own)
@@ -479,6 +521,10 @@ export async function executeClaudePrompt(
     if (payload.thinkingMode) {
       await toggleThinkingMode(page);
     }
+
+    // Dismiss any overlays that may have been spawned (model dropdown portal,
+    // legacy-model warnings, claude-code nudges, etc.) before typing.
+    await dismissOverlays(page);
 
     // 6. Upload attachments if any
     for (const attachment of payload.attachmentBuffers) {

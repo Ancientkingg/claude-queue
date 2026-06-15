@@ -10,11 +10,18 @@ interface Entry {
   newChatJobId?: string;          // set for new-chat entries
 }
 
-/** Reuse claude's own sidebar title for an existing chat, else a prompt preview. */
+/** Reuse claude's own sidebar title for an existing chat, else a prompt preview.
+ *  claude.ai renders two copies of each title: an `.sr-only` span for screen
+ *  readers and an `[aria-hidden="true"]` span for display.  `textContent`
+ *  concatenates both → "Test messageTest message", so we read only the visible
+ *  copy and fall back to `textContent` if the structure ever changes. */
 function titleForConversation(conversationId: string, fallback: string): string {
   const link = document.querySelector(`a[href$="/chat/${conversationId}"]`);
-  const text = link?.textContent?.trim();
-  return text && text.length > 0 ? text : fallback;
+  if (!link) return fallback;
+  // Read the visible-only span (aria-hidden="true") to avoid doubling from sr-only
+  const visible = link.querySelector('[aria-hidden="true"]');
+  const text = (visible?.textContent ?? link.textContent ?? '').trim();
+  return text.length > 0 ? text : fallback;
 }
 
 function buildEntries(jobs: QueuedJob[]): Entry[] {
