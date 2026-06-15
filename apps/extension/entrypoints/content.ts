@@ -171,24 +171,30 @@ function mountQueuedBubbles(store: QueueStore) {
   const root = createRoot(wrapper);
   root.render(React.createElement(QueuedBubbles, { store }));
 
+  let retries = 0;
+  const MAX_RETRIES = 30; // ~15s at 500ms intervals
+
   const ensure = () => {
     if (wrapper.isConnected) return;
     // Anchor: inside the message scroll container at the end of the thread,
-    // before the sticky chat input. This places bubbles among real messages
-    // instead of below the Fable banner in the composer area.
+    // before the sticky chat input. Search the scroll container itself (not
+    // just its first child) for the input — it may be nested several levels
+    // deep inside the scroll div.
     const scroll = document.querySelector('[data-autoscroll-container="true"]');
-    if (!scroll) return;
-    // The scroll container has an inner flex-col div that holds messages + input.
-    const inner = scroll.firstElementChild as HTMLElement | null;
-    if (!inner) return;
-    // The sticky chat input is the last child of the inner container; insert
-    // bubbles right before it so they sit at the end of the message list.
-    const inputContainer = inner.querySelector('[data-chat-input-container="true"]');
+    if (!scroll) {
+      // SPA may not have rendered the chat area yet — retry with backoff.
+      if (retries < MAX_RETRIES) {
+        retries++;
+        setTimeout(ensure, 500);
+      }
+      return;
+    }
+    retries = 0; // found the container, reset retries for future re-anchors
+    const inputContainer = scroll.querySelector('[data-chat-input-container="true"]');
     if (inputContainer) {
-      inner.insertBefore(wrapper, inputContainer);
+      scroll.insertBefore(wrapper, inputContainer);
     } else {
-      // Fallback: append to the end of the inner container.
-      inner.appendChild(wrapper);
+      scroll.appendChild(wrapper);
     }
   };
   ensure();
@@ -209,46 +215,51 @@ function mountQueuedSidebar(store: QueueStore) {
 
   const ensure = () => {
     if (wrapper.isConnected) return;
-    // Anchor: inside the sidebar nav, between the "Products" section and the
-    // "Recents" section. Find the Recents header (an h2 or similar with text
-    // "Recents"), walk up to its containing group div, and insert before it.
     const nav = document.querySelector('nav[aria-label="Sidebar"]');
     if (!nav) return;
 
-    // Look for the Recents section header — an element whose text is "Recents"
-    // inside an h2 or a role="button" span within the sidebar.
-    const all = nav.querySelectorAll('h2, [role="button"]');
-    for (const el of all) {
-      if (el.textContent?.trim() === 'Recents') {
-        // The Recents header is inside a collapsible section. Walk up to the
-        // section wrapper (the closest parent that also contains the <ul>).
-        const section = el.closest('div[class*="flex"][class*="flex-col"]') ?? el.parentElement?.parentElement;
-        if (section?.parentElement) {
-          section.parentElement.insertBefore(wrapper, section);
+    // Anchor between the Products section and the Recents section.
+    // claude.ai renders section headers as <h2 class="contents"> containing a
+    // <span role="button"> whose textContent includes the section name plus an
+    // icon character (e.g. "Recents"), so we can't use exact match.
+    // Strategy: find the <h2> whose text starts with "Recents", then walk up
+    // to the <div class="flex-1 relative"> that wraps the entire Recents block.
+    const headings = nav.querySelectorAll('h2');
+    for (const h2 of headings) {
+      const text = h2.textContent?.trim() ?? '';
+      if (text.startsWith('Recents')) {
+        // Walk up to the <div class="flex-1 relative"> that is the Recents
+        // section's outer container — it lives at the same level as the
+        // Products <ul> in the sidebar's scroll area.
+        const recentsBlock = h2.closest('div.flex-1.relative') as HTMLElement | null;
+        if (recentsBlock?.parentElement) {
+          recentsBlock.parentElement.insertBefore(wrapper, recentsBlock);
           return;
         }
-        // Fallback: insert right before the header's container
-        const container = el.parentElement?.parentElement;
-        if (container?.parentElement) {
-          container.parentElement.insertBefore(wrapper, container);
-          return;
-        }
-      }
-    }
-
-    // Fallback: if we can't find Recents, anchor after the Products section.
-    // Find Products heading and insert after its section group.
-    for (const el of all) {
-      if (el.textContent?.trim() === 'Products') {
-        const section = el.closest('div[class*="flex"][class*="flex-col"]') ?? el.parentElement?.parentElement;
-        if (section?.parentElement) {
-          section.parentElement.insertBefore(wrapper, section.nextSibling);
+        // Fallback: the h2 is inside a series of nested divs; go up 4 levels
+        // to reach the top-level section wrapper.
+        let el: HTMLElement | null = h2;
+        for (let i = 0; i < 4 && el; i++) el = el.parentElement;
+        if (el?.parentElement) {
+          el.parentElement.insertBefore(wrapper, el);
           return;
         }
       }
     }
 
-    // Last resort: anchor before the "Chats" link (original behavior).
+    // Fallback: insert after the Products section.
+    for (const h2 of headings) {
+      const text = h2.textContent?.trim() ?? '';
+      if (text.startsWith('Products')) {
+        const productsBlock = (h2.closest('ul')?.parentElement ?? h2.parentElement?.parentElement?.parentElement) as HTMLElement | null;
+        if (productsBlock?.parentElement) {
+          productsBlock.parentElement.insertBefore(wrapper, productsBlock.nextSibling);
+          return;
+        }
+      }
+    }
+
+    // Last resort: anchor before the "Chats" link.
     const chatsLink = document.querySelector('nav a[href="/recents"]');
     if (chatsLink) {
       const list = chatsLink.parentElement;
@@ -257,7 +268,7 @@ function mountQueuedSidebar(store: QueueStore) {
         return;
       }
     }
-    // Ultimate fallback: top of the scroll area.
+    // Ultimate fallback: top of scroll area.
     const scrollArea = nav.children[1] ?? nav.firstElementChild;
     if (scrollArea) {
       scrollArea.insertBefore(wrapper, scrollArea.firstChild);
