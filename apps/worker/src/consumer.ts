@@ -157,7 +157,7 @@ async function processJob(job: Job): Promise<void> {
 export async function startConsumer(): Promise<Worker> {
   const connection = parseRedisUrl(config.redisUrl);
 
-  console.log(`📡 Connecting to Redis at ${config.redisUrl}`);
+  console.log(`📡 Connecting to Redis at ${new URL(config.redisUrl).host}`);
   console.log(`🔧 Concurrency: ${config.concurrency}`);
   console.log(`🌐 Headless: ${config.browserHeadless}`);
 

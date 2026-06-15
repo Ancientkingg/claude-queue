@@ -12,8 +12,8 @@ export interface WorkerConfig {
 }
 
 function requireEnv(name: string, fallback?: string): string {
-  const value = process.env[name] ?? fallback;
-  if (value === undefined) {
+  const value = (process.env[name] ?? fallback)?.trim();
+  if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
@@ -26,8 +26,8 @@ export const config: WorkerConfig = {
     'postgresql://claude_queue:claude_queue_dev@localhost:5433/claude_queue',
   ),
   s3Endpoint: requireEnv('S3_ENDPOINT', 'http://localhost:9000'),
-  s3AccessKey: requireEnv('S3_ACCESS_KEY', 'minioadmin'),
-  s3SecretKey: requireEnv('S3_SECRET_KEY', 'minioadmin'),
+  s3AccessKey: requireEnv('S3_ACCESS_KEY'),
+  s3SecretKey: requireEnv('S3_SECRET_KEY'),
   s3Bucket: requireEnv('S3_BUCKET', 'claude-queue-attachments'),
   browserHeadless: (process.env['BROWSER_HEADLESS'] ?? 'true') === 'true',
   concurrency: parseInt(process.env['CONCURRENCY'] ?? '1', 10),
