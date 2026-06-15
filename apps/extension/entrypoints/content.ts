@@ -74,22 +74,26 @@ export default defineContentScript({
   },
 });
 
-/** Find claude.ai's microphone / dictation button (always present in the toolbar). */
+/**
+ * Find claude.ai's microphone (dictation) button — labelled "Press and hold to
+ * record". It sits just left of the "Use voice mode" wave button, so inserting
+ * after it places the Queue button between the mic and the wave/send button.
+ * Note: we deliberately avoid matching "voice", which is the wave button.
+ */
 function findMicButton(): HTMLElement | null {
   const SELECTORS = [
+    'button[aria-label*="record" i]',      // "Press and hold to record"
     'button[aria-label*="dictation" i]',
     'button[aria-label*="microphone" i]',
-    'button[aria-label*="voice" i]',
-    'button[aria-label*="speech" i]',
   ];
   for (const sel of SELECTORS) {
     const el = document.querySelector<HTMLElement>(sel);
     if (el) return el;
   }
-  // Fallback: scan toolbar buttons for a mic-like aria-label.
+  // Fallback: scan toolbar buttons for a mic-like aria-label (not the wave btn).
   for (const btn of document.querySelectorAll<HTMLElement>('button[aria-label]')) {
     const label = (btn.getAttribute('aria-label') ?? '').toLowerCase();
-    if (/mic|dicta|voice|speech/.test(label)) return btn;
+    if (/record|dicta|microphone/.test(label)) return btn;
   }
   return null;
 }
