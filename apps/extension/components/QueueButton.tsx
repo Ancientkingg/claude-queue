@@ -19,6 +19,13 @@ export const QueueButton: React.FC<{ onQueued?: (job: QueuedJob) => void }> = ({
 
       if (response?.ok) {
         setLastStatus('✓ Queued');
+        // Clear the text input so the user doesn't have to manually
+        // delete a prompt they've already queued.
+        const editable = document.querySelector<HTMLElement>('[contenteditable="true"]');
+        if (editable) {
+          editable.textContent = '';
+          editable.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        }
         if (response.jobId && response.scheduledAt) {
           onQueued?.({
             id: response.jobId,
