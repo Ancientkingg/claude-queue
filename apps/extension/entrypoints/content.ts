@@ -192,7 +192,10 @@ function mountQueuedBubbles(store: QueueStore) {
     retries = 0; // found the container, reset retries for future re-anchors
     const inputContainer = scroll.querySelector('[data-chat-input-container="true"]');
     if (inputContainer) {
-      scroll.insertBefore(wrapper, inputContainer);
+      // inputContainer is not a direct child of scroll — insertBefore would
+      // throw NotFoundError. Use Element.before() to insert as a sibling
+      // regardless of nesting depth.
+      inputContainer.before(wrapper);
     } else {
       scroll.appendChild(wrapper);
     }
