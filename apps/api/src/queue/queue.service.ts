@@ -167,9 +167,13 @@ export class QueueService {
     return message;
   }
 
-  async cancelJob(id: string) {
+  async cancelJob(id: string, accountId?: string) {
     const job = await this.prisma.queuedMessage.findUnique({ where: { id } });
     if (!job) {
+      throw new NotFoundException(`Job with id "${id}" not found`);
+    }
+    // Verify account ownership — prevent cross-account cancels
+    if (accountId && job.account_id !== accountId) {
       throw new NotFoundException(`Job with id "${id}" not found`);
     }
     if (job.status !== 'PENDING') {

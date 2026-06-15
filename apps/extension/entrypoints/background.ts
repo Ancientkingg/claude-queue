@@ -284,7 +284,8 @@ async function handleListQueuedJobs(): Promise<{ ok: boolean; jobs: QueuedJob[];
 }
 
 async function handleCancelJob(payload: { id: string }) {
-  const res = await cancelJob(payload.id);
+  const accountId = await getAccountId();
+  const res = await cancelJob(payload.id, accountId ?? undefined);
   if (res.ok) return { ok: true };
   return { ok: false, status: res.status, error: `Cancel failed (HTTP ${res.status})` };
 }

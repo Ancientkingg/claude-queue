@@ -178,8 +178,9 @@ export async function listQueuedJobs(params: {
   return request<ListJobsResult>('GET', `/jobs?${q.toString()}`);
 }
 
-export async function cancelJob(id: string): Promise<ApiResponse<{ ok: boolean }>> {
-  return request<{ ok: boolean }>('DELETE', `/jobs/${id}`);
+export async function cancelJob(id: string, accountId?: string): Promise<ApiResponse<{ ok: boolean }>> {
+  const query = accountId ? `?accountId=${encodeURIComponent(accountId)}` : '';
+  return request<{ ok: boolean }>('DELETE', `/jobs/${id}${query}`);
 }
 
 // === Health check ===

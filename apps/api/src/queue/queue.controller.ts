@@ -116,9 +116,12 @@ export class QueueController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  async cancelJob(@Param('id') id: string) {
-    this.logger.log(`🗑️  Canceling job ${id}`);
-    return this.queueService.cancelJob(id);
+  async cancelJob(
+    @Param('id') id: string,
+    @Query('accountId') accountId?: string,
+  ) {
+    this.logger.log(`🗑️  Canceling job ${id} (account: ${accountId ?? 'not provided'})`);
+    return this.queueService.cancelJob(id, accountId);
   }
 
   @Get(':id')
