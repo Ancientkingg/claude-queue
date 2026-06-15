@@ -68,25 +68,34 @@ the wave/send button.
 
 ### 2. Reset-time detection (`entrypoints/background.ts` + storage)
 
-Gaugr-style passive interception of claude.ai's existing API traffic.
+**Verified against live claude.ai traffic (2026-06-15):** the web app does *not*
+send `anthropic-ratelimit-*` HTTP headers. The reset time lives in the SSE
+`message_limit` event body of completions, and the Settings → Usage page reads
+it from a dedicated REST endpoint. We use that endpoint — it works without
+sending a message and needs no traffic interception.
 
-- Add `webRequest` to manifest `permissions` (host permission for
-  `https://claude.ai/*` already present).
-- Register `browser.webRequest.onHeadersReceived` for
-  `{ urls: ['https://claude.ai/api/*'] }` with
-  `extraInfoSpec: ['responseHeaders']` (Chrome MV3 also needs `'extraHeaders'`
-  where required; Firefox MV2 supports `responseHeaders` directly).
-- From each response, read `anthropic-ratelimit-unified-5h-reset`
-  (case-insensitive). Also capture any `anthropic-ratelimit-unified-*-reset`
-  for forward-compat, but only the **5h** value is used as "end of session".
-- Parse the value robustly: if it's all digits treat as epoch **seconds**
-  (×1000 if it looks like seconds, leave if ms), otherwise `Date.parse` as
-  RFC-3339. Reject non-finite / past-by-more-than-a-window values.
+- **Endpoint:** `GET https://claude.ai/api/organizations/{orgId}/usage`,
+  `Content-Type: application/json`, `credentials: 'include'`. The extension
+  background can read the response despite the endpoint's
+  `Access-Control-Allow-Origin: https://claude.ai` because `https://claude.ai/*`
+  is in `host_permissions` (host-permission fetches bypass CORS). No
+  `webRequest` permission is needed.
+- **orgId:** read from the `lastActiveOrg` cookie via
+  `browser.cookies.get({ url: 'https://claude.ai', name: 'lastActiveOrg' })`.
+- **Response shape:**
+  `{ five_hour: { utilization, resets_at }, seven_day: { ... }, ... }`. We read
+  `five_hour.resets_at` (an RFC-3339 string, e.g.
+  `"2026-06-15T18:50:01.028967+00:00"`). The 7-day window is ignored.
+- **Parse:** `parseResetTimestamp` accepts an RFC-3339 string (REST), epoch
+  seconds (the SSE `message_limit` form), or epoch ms, and rejects non-finite /
+  out-of-window values.
 - Persist `{ resetAtMs, capturedAtMs }` to extension storage
   (`storage.ts` gets `getResetInfo` / `setResetInfo`).
-- New message handler `GET_RESET_TIME` returns the latest persisted reset info
-  (or `{ ok: false }` if none captured yet — the modal then shows a "waiting for
-  claude.ai…" state and polls).
+- Message handler `GET_RESET_TIME` returns a cached value when fresh
+  (< 60 s old), otherwise fetches the endpoint, persists, and returns it; on
+  failure it falls back to any stored value, else `{ ok: false }`. The modal
+  shows a "waiting for claude.ai…" state and polls every 3 s until it gets a
+  value, then stops.
 
 ### 3. Modal redesign + scheduling (`components/ScheduleModal.tsx`)
 
