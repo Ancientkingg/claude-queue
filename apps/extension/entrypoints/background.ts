@@ -121,7 +121,7 @@ async function handleSyncSession() {
   }
 
   // Surface validation errors from the API
-  const errorData = response.data as Record<string, unknown> | null;
+  const errorData = response.data as unknown as Record<string, unknown> | null;
   const validationErrors = errorData?.['errors'] as Array<{ path: string; message: string }> | undefined;
   const detail = validationErrors?.map((e) => `${e.path}: ${e.message}`).join(', ') ?? '';
   console.error('[Claude Queue] Sync failed:', response.status, detail || errorData);
