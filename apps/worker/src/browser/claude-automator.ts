@@ -1,6 +1,6 @@
 import type { Page, BrowserContext } from 'playwright';
 import { solveTurnstile, extractSitekeyFromSrc } from './captcha-solver.js';
-import { solveViaFlareSolverr, toPlaywrightCookies } from './flare-solverr.js';
+import { solveViaFlareSolverr, toPlaywrightCookies, destroySession } from './flare-solverr.js';
 import { config } from '../config.js';
 
 export interface AutomationResult {
@@ -249,26 +249,29 @@ async function handleTurnstileChallenge(page: Page): Promise<boolean> {
  *
  * Flow:
  *  1. Call FlareSolverr to solve any Cloudflare challenge before Playwright
- *     even touches the page. Inject the clearance cookies into the context.
- *  2. Navigate with Playwright — Cloudflare sees the cf_clearance cookie and
- *     lets us through without a challenge.
+ *     even touches the page. Inject the clearance cookies AND spoof the
+ *     User-Agent so Cloudflare's JS fingerprinting sees the same browser.
+ *  2. Navigate with Playwright — Cloudflare sees matching UA + cf_clearance
+ *     and lets us through without a challenge.
  *  3. If FlareSolverr is unreachable or fails, fall back to direct navigation
  *     with the existing detection → auto-resolve → CAPTCHA solving chain.
+ *
+ * Returns the FlareSolverr User-Agent if one was used, so the caller can
+ * continue to spoof it for late-challenge handling.
  */
 async function navigateWithRetry(
   page: Page,
   url: string,
   maxAttempts: number = 3,
-): Promise<void> {
+): Promise<string | null> {
   const baseDelay = config.retryBaseMs;
+  let fsUserAgent: string | null = null;
+  let fsSessionBurned = false;
 
   // ── Primary strategy: FlareSolverr pre-seeding ─────────────────────────
-  // Use FlareSolverr to fetch the URL, solve the challenge, and return the
-  // clearance cookies. We inject them into the Playwright context so the
-  // challenge never appears when we navigate.
   try {
     console.log('  🦾 Attempting FlareSolverr pre-seed...');
-    const fsSolution = await solveViaFlareSolverr(url, 60_000);
+    const fsSolution = await solveViaFlareSolverr(url, 60_000, fsSessionBurned);
 
     if (fsSolution && fsSolution.cookies.length > 0) {
       // Inject the Cloudflare clearance cookies into the browser context
@@ -276,7 +279,30 @@ async function navigateWithRetry(
       await page.context().addCookies(pwCookies);
       console.log(`  🍪 Seeded ${pwCookies.length} FlareSolverr cookies`);
 
-      // Navigate — Cloudflare should see the clearance cookie and skip the challenge
+      // ── CRITICAL: Spoof User-Agent to match FlareSolverr's browser ────
+      // Cloudflare binds cf_clearance cookies to the solving browser's UA.
+      // If our navigator.userAgent differs, Cloudflare's JS detects the
+      // mismatch on SPA API calls and re-challenges (late challenge).
+      if (fsSolution.userAgent) {
+        fsUserAgent = fsSolution.userAgent;
+        await page.addInitScript((ua: string) => {
+          Object.defineProperty(navigator, 'userAgent', {
+            get: () => ua,
+            configurable: true,
+          });
+          // Also override appVersion and platform for consistency
+          const appVersionMatch = ua.match(/Mozilla\/5\.0 \((.+?)\)/);
+          if (appVersionMatch) {
+            Object.defineProperty(navigator, 'platform', {
+              get: () => appVersionMatch[1].split(';')[0]?.trim() ?? '',
+              configurable: true,
+            });
+          }
+        }, fsSolution.userAgent);
+        console.log(`  🎭 Spoofed navigator.userAgent to match FlareSolverr`);
+      }
+
+      // Navigate — Cloudflare should see matching UA + clearance cookie
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       await humanDelay(800, 1_500);
       console.log(`  📍 Landed on ${page.url()}`);
@@ -284,11 +310,14 @@ async function navigateWithRetry(
       const block = await checkForBlock(page);
       if (!block) {
         console.log('  ✅ FlareSolverr bypass successful');
-        return;
+        return fsUserAgent;
       }
 
-      // FlareSolverr cookies weren't enough — fall through to the retry loop
-      console.log(`  ⚠️  FlareSolverr bypass incomplete, challenge still present: ${block}`);
+      // FlareSolverr cookies were rejected — the session is likely burned.
+      // Destroy it so the next attempt gets a fresh browser.
+      console.log(`  ⚠️  FlareSolverr bypass incomplete (${block}), destroying burned session`);
+      fsSessionBurned = true;
+      await destroySession();
     } else {
       console.log('  ⚠️  FlareSolverr returned no cookies, falling back to direct navigation');
     }
@@ -311,7 +340,7 @@ async function navigateWithRetry(
 
     // Check for a challenge
     const block = await checkForBlock(page);
-    if (!block) return; // clean navigation, done
+    if (!block) return null; // clean navigation, done
 
     console.log(`  🚫 Blocked: ${block} (attempt ${attempt}/${maxAttempts})`);
 
@@ -330,13 +359,13 @@ async function navigateWithRetry(
 
       if (autoResolved) {
         console.log('  ✅ Challenge auto-resolved');
-        return;
+        return null;
       }
 
       // Auto-resolve failed — attempt CAPTCHA solving
       console.log('  🤖 Auto-resolve failed, attempting CAPTCHA solving...');
       const solved = await handleTurnstileChallenge(page);
-      if (solved) return;
+      if (solved) return null;
 
       // Solving failed — retry with backoff
       if (attempt < maxAttempts) {
@@ -365,8 +394,9 @@ export async function executeClaudePrompt(
       ? `https://claude.ai/chat/${payload.conversationId}`
       : 'https://claude.ai/new';
 
+    let fsUserAgent: string | null = null;
     try {
-      await navigateWithRetry(page, url, config.maxAttempts);
+      fsUserAgent = await navigateWithRetry(page, url, config.maxAttempts);
     } catch (navErr) {
       const msg = navErr instanceof Error ? navErr.message : String(navErr);
       return { success: false, error: msg };
@@ -380,18 +410,54 @@ export async function executeClaudePrompt(
     try {
       await page.waitForSelector('[contenteditable="true"]', { timeout: 15_000 });
     } catch {
-      // Late challenge may have appeared; one last attempt to solve it
+      // Late challenge may have appeared — Cloudflare JS detected a UA/fingerprint
+      // mismatch on SPA API calls and issued a JS-redirect challenge (NOT a
+      // Turnstile iframe). FlareSolverr can solve this by re-fetching with
+      // a fresh browser session.
       const lateBlock = await checkForBlock(page);
       if (lateBlock === 'CHALLENGE_RAISED') {
-        console.log('  🤖 Late challenge detected, attempting solve...');
-        const solved = await handleTurnstileChallenge(page);
-        if (solved) {
-          try {
-            await page.waitForSelector('[contenteditable="true"]', { timeout: 15_000 });
-          } catch {
+        console.log('  🤖 Late challenge detected, re-solving via FlareSolverr...');
+
+        // Re-solve with a FRESH FlareSolverr session (current one may be burned)
+        const fsRetry = await solveViaFlareSolverr(url, 60_000, true);
+
+        if (fsRetry && fsRetry.cookies.length > 0) {
+          // Inject fresh clearance cookies
+          const pwCookies = toPlaywrightCookies(fsRetry.cookies);
+          await page.context().addCookies(pwCookies);
+          console.log(`  🍪 Re-seeded ${pwCookies.length} fresh FlareSolverr cookies`);
+
+          // If we got a new UA, spoof it too
+          if (fsRetry.userAgent) {
+            fsUserAgent = fsRetry.userAgent;
+            await page.addInitScript((ua: string) => {
+              Object.defineProperty(navigator, 'userAgent', {
+                get: () => ua,
+                configurable: true,
+              });
+            }, fsRetry.userAgent);
+            console.log(`  🎭 Updated UA spoof to match fresh FlareSolverr session`);
+          }
+
+          // Reload the page with fresh cookies
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+          await humanDelay(1_000, 2_000);
+          console.log(`  📍 Reloaded: ${page.url()}`);
+
+          const recheck = await checkForBlock(page);
+          if (!recheck) {
+            console.log('  ✅ Late challenge resolved via FlareSolverr');
+            try {
+              await page.waitForSelector('[contenteditable="true"]', { timeout: 15_000 });
+            } catch {
+              return { success: false, error: 'Editor did not appear after FlareSolverr re-solve' };
+            }
+          } else {
+            console.warn(`  ⚠️  Challenge still present after re-solve: ${recheck}`);
             return { success: false, error: 'CHALLENGE_RAISED' };
           }
         } else {
+          console.warn('  ⚠️  FlareSolverr re-solve failed');
           return { success: false, error: 'CHALLENGE_RAISED' };
         }
       } else {

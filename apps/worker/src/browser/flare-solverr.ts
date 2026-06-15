@@ -150,8 +150,18 @@ export async function destroySession(): Promise<void> {
 export async function solveViaFlareSolverr(
   url: string,
   maxTimeout: number = 60_000,
+  forceFresh: boolean = false,
 ): Promise<FlareSolverrSolution | null> {
   try {
+    // Destroy the current session if it's been burned by Cloudflare
+    if (forceFresh && activeSession) {
+      try {
+        await callFlareSolverr({ cmd: 'sessions.destroy', session: activeSession });
+      } catch { /* ignore */ }
+      activeSession = null;
+      console.log('  🔄 FlareSolverr burned session discarded, creating fresh one');
+    }
+
     const sessionId = await getOrCreateSession();
 
     console.log(`  🦾 FlareSolverr solving: ${url}`);
