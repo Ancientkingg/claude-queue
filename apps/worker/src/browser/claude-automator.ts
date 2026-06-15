@@ -39,16 +39,33 @@ export async function executeClaudePrompt(
     // would reliably hit the timeout. Readiness is confirmed below via the editor selector.
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-    // 2. Check for Cloudflare challenge or login wall
+    // claude.ai may bounce an automation-suspicious request through an anti-abuse
+    // challenge (e.g. /api/challenge_redirect). That redirect can land slightly after
+    // the initial navigation resolves, so give it a brief moment to settle.
+    await page.waitForTimeout(1_000);
+    console.log(`  📍 Landed on ${page.url()}`);
+
+    // 2. Check for Cloudflare/anti-automation challenge or login wall
     const blockResult = await checkForBlock(page);
     if (blockResult) {
       console.log(`  🚫 Blocked: ${blockResult}`);
       return { success: false, error: blockResult };
     }
 
-    // 3. Wait for the chat editor to be ready
+    // 3. Wait for the chat editor to be ready. If it never appears, re-check for a
+    //    block that surfaced during the wait so we report an accurate reason instead
+    //    of a raw selector timeout.
     console.log('  ⏳ Waiting for chat editor...');
-    await page.waitForSelector('[contenteditable="true"]', { timeout: 15_000 });
+    try {
+      await page.waitForSelector('[contenteditable="true"]', { timeout: 15_000 });
+    } catch (waitErr) {
+      const lateBlock = await checkForBlock(page);
+      if (lateBlock) {
+        console.log(`  🚫 Blocked (after editor wait): ${lateBlock} @ ${page.url()}`);
+        return { success: false, error: lateBlock };
+      }
+      throw waitErr;
+    }
 
     // 4. Select model if needed
     await selectModel(page, payload.modelTarget);
@@ -102,6 +119,18 @@ export async function executeClaudePrompt(
  * Returns null if no block is detected, or a string describing the block.
  */
 async function checkForBlock(page: Page): Promise<string | null> {
+  // Check the current URL: claude.ai redirects automation-suspicious requests to an
+  // anti-abuse challenge endpoint (e.g. /api/challenge_redirect) or a Cloudflare path.
+  const currentUrl = page.url();
+  if (/\/api\/challenge_redirect|\/challenge(?:s)?(?:\/|\?|$)|challenges\.cloudflare\.com/.test(currentUrl)) {
+    return 'CHALLENGE_RAISED';
+  }
+
+  // A redirect to the login/auth page means the restored session is no longer valid.
+  if (/\/login|\/auth|\/sign-in/.test(currentUrl)) {
+    return 'SESSION_EXPIRED';
+  }
+
   // Check for Cloudflare Turnstile challenge
   const turnstileCount = await page
     .locator('iframe[src*="challenges.cloudflare.com"]')
