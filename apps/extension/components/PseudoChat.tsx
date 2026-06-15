@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { QueueStore } from '@/lib/queue-store';
-import { CL } from '@/lib/theme';
-import { useQueueJobs } from './queue-hooks';
+import { useQueueJobs, useThemeColors } from './queue-hooks';
 import { QueuedCard } from './QueuedBubbles';
 
 /**
@@ -10,6 +9,7 @@ import { QueuedCard } from './QueuedBubbles';
  */
 export const PseudoChat: React.FC<{ store: QueueStore }> = ({ store }) => {
   const jobs = useQueueJobs(store);
+  const CL = useThemeColors();
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {

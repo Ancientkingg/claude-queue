@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import type { QueueStore, QueuedJob } from '@/lib/queue-store';
-import { CL } from '@/lib/theme';
-import { useQueueJobs, useLocationPath, formatSendTime } from './queue-hooks';
+import { useQueueJobs, useLocationPath, formatSendTime, useThemeColors } from './queue-hooks';
 import { parseConversationId } from '@/lib/conversation';
 
 /** A single queued message rendered like a sent user bubble + a footer menu. */
 export const QueuedCard: React.FC<{ job: QueuedJob; store: QueueStore }> = ({ job, store }) => {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const CL = useThemeColors();
 
   const cancel = async () => {
     setBusy(true);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { QueueStore, QueuedJob } from '@/lib/queue-store';
+import { DARK, LIGHT, type ThemeColors } from '@/lib/theme';
 
 /** Subscribe to the QueueStore; re-renders on any store change. */
 export function useQueueJobs(store: QueueStore): QueuedJob[] {
@@ -38,6 +39,31 @@ export function useLocationPath(): string {
   }, []); // stable effect — uses pathRef to avoid stale closure
 
   return path;
+}
+
+/** Read claude.ai's current theme from <html data-mode="dark|light"> and react
+ *  to theme changes (the UI toggles the attribute without a page reload). */
+export function useThemeColors(): ThemeColors {
+  const [mode, setMode] = useState<string>(
+    () => document.documentElement.dataset.mode ?? 'dark',
+  );
+
+  useEffect(() => {
+    const check = () => {
+      const m = document.documentElement.dataset.mode ?? 'dark';
+      setMode((prev) => (prev !== m ? m : prev));
+    };
+    check();
+
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-mode'],
+    });
+    return () => obs.disconnect();
+  }, []);
+
+  return mode === 'light' ? LIGHT : DARK;
 }
 
 /** "in 2 hr · 7:50 PM" style label for an absolute ISO send time. */

@@ -3,10 +3,12 @@ import { ScheduleModal } from './ScheduleModal';
 import type { ScheduleConfig } from './ScheduleModal';
 import type { QueuedJob } from '@/lib/queue-store';
 import { parseConversationId } from '@/lib/conversation';
+import { useThemeColors } from './queue-hooks';
 
 export const QueueButton: React.FC<{ onQueued?: (job: QueuedJob) => void }> = ({ onQueued }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [lastStatus, setLastStatus] = useState<string | null>(null);
+  const CL = useThemeColors();
 
   const handleSubmit = useCallback(async (config: ScheduleConfig) => {
     try {
@@ -49,7 +51,7 @@ export const QueueButton: React.FC<{ onQueued?: (job: QueuedJob) => void }> = ({
     borderRadius: 8,
     border: 'none',
     background: 'transparent',
-    color: '#da7756',
+    color: CL.orange,
     cursor: 'pointer',
     marginLeft: 2,
     marginRight: 2,

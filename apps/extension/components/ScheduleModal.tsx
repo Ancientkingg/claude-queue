@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { computeSendTime } from '@/lib/reset-parser';
-import { CL } from '@/lib/theme';
+import { useThemeColors } from './queue-hooks';
 import { parseConversationId } from '@/lib/conversation';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -93,6 +93,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
 
   // Reset-time detection (from background, populated by webRequest capture).
   const [resetAtMs, setResetAtMs] = useState<number | null>(null);
+
+  const CL = useThemeColors();
 
   useEffect(() => {
     if (!isOpen) return;

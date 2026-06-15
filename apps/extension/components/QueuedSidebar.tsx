@@ -1,7 +1,6 @@
 import React from 'react';
 import type { QueueStore, QueuedJob } from '@/lib/queue-store';
-import { CL } from '@/lib/theme';
-import { useQueueJobs } from './queue-hooks';
+import { useQueueJobs, useThemeColors } from './queue-hooks';
 
 interface Entry {
   key: string;
@@ -43,6 +42,7 @@ function buildEntries(jobs: QueuedJob[]): Entry[] {
 
 export const QueuedSidebar: React.FC<{ store: QueueStore }> = ({ store }) => {
   const jobs = useQueueJobs(store);
+  const CL = useThemeColors();
   if (jobs.length === 0) return null;
   const entries = buildEntries(jobs);
 
