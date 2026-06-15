@@ -60,10 +60,34 @@ const DEFAULT_JITTER_S = 90;       // 0–90s
 
 // ── Date/time helpers (for the "Specific time" picker) ───────────────────────────
 
-/** Format a Date as the local value a <input type="datetime-local"> expects. */
-function toLocalInputValue(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+const p2 = (n: number) => String(n).padStart(2, '0');
+
+/** Format a Date as dd/mm/yyyy (European date). */
+function fmtDate(d: Date): string {
+  return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/** Format a Date as HH:MM (24-hour). */
+function fmtTime(d: Date): string {
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+/** Parse a dd/mm/yyyy date string into year, month, day. Returns null on invalid. */
+function parseDate(s: string): { y: number; m: number; d: number } | null {
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = parseInt(m[1], 10), mo = parseInt(m[2], 10), y = parseInt(m[3], 10);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2020) return null;
+  return { y, m: mo, d };
+}
+
+/** Parse a HH:MM time string into hours, minutes. Returns null on invalid. */
+function parseTime(s: string): { h: number; m: number } | null {
+  const m = s.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+  if (h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+  return { h, m: mi };
 }
 
 /** Quick presets for the absolute picker, each returning a concrete Date. */
@@ -86,7 +110,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
   const [mode, setMode] = useState<Mode>('session');
   const [offsetMs, setOffsetMs] = useState<number>(DEFAULT_OFFSET_MS);
   const [jitterSeconds, setJitterSeconds] = useState<number>(DEFAULT_JITTER_S);
-  const [scheduledAt, setScheduledAt] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
   const [modelTarget, setModelTarget] = useState(MODEL_OPTIONS[0].id);
   const [thinkingMode, setThinkingMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,7 +126,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     setMode('session');
     setOffsetMs(DEFAULT_OFFSET_MS);
     setJitterSeconds(DEFAULT_JITTER_S);
-    setScheduledAt(toLocalInputValue(new Date(Date.now() + 60 * 60_000))); // default: +1h
+    const d = new Date(Date.now() + 60 * 60_000);
+    setScheduledDate(fmtDate(d));
+    setScheduledTime(fmtTime(d));
     setIsSubmitting(false);
 
     // Detect the currently-selected model from claude.ai's UI so the default
@@ -156,11 +183,22 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     config.conversationId = parseConversationId(location.pathname);
 
     if (mode === 'absolute') {
-      if (!scheduledAt) {
+      if (!scheduledDate || !scheduledTime) {
         alert('Please pick a date and time.');
         return;
       }
-      config.scheduledAt = new Date(scheduledAt).toISOString();
+      const parsedDate = parseDate(scheduledDate);
+      const parsedTime = parseTime(scheduledTime);
+      if (!parsedDate || !parsedTime) {
+        alert('Invalid date/time format. Use dd/mm/yyyy and HH:MM.');
+        return;
+      }
+      const d = new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d, parsedTime.h, parsedTime.m);
+      if (Number.isNaN(d.getTime())) {
+        alert('Invalid date/time.');
+        return;
+      }
+      config.scheduledAt = d.toISOString();
     } else {
       if (resetAtMs == null) return; // button is disabled in this state
       const sendMs = computeSendTime(resetAtMs, offsetMs, jitterSeconds * 1000);
@@ -170,7 +208,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     setIsSubmitting(true);
     await onSubmit(config);
     setIsSubmitting(false);
-  }, [extractPromptText, modelTarget, thinkingMode, mode, scheduledAt, resetAtMs, offsetMs, jitterSeconds, onSubmit]);
+  }, [extractPromptText, modelTarget, thinkingMode, mode, scheduledDate, scheduledTime, resetAtMs, offsetMs, jitterSeconds, onSubmit]);
 
   if (!isOpen) return null;
 
@@ -292,31 +330,54 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
               <span style={label}>Send at</span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 10 }}>
                 {TIME_PRESETS.map((p) => {
-                  const v = toLocalInputValue(p.make());
+                  const d = p.make();
+                  const dateStr = fmtDate(d);
+                  const timeStr = fmtTime(d);
+                  const active = scheduledDate === dateStr && scheduledTime === timeStr;
                   return (
-                    <button key={p.label} onClick={() => setScheduledAt(v)} style={chip(scheduledAt === v)}>
+                    <button
+                      key={p.label}
+                      onClick={() => { setScheduledDate(dateStr); setScheduledTime(timeStr); }}
+                      style={chip(active)}
+                    >
                       {p.label}
                     </button>
                   );
                 })}
               </div>
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                min={toLocalInputValue(new Date())}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                style={input}
-              />
-              {scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime()) && (
-                <div style={{ fontSize: 13, color: CL.green, marginTop: 10 }}>
-                  {new Date(scheduledAt).getTime() <= Date.now()
-                    ? '⚠ That time is in the past'
-                    : 'Will send ' + new Date(scheduledAt).toLocaleString('en-GB', {
-                        weekday: 'short', day: 'numeric', month: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                </div>
-              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="dd/mm/yyyy"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  style={input}
+                />
+                <input
+                  type="text"
+                  placeholder="HH:MM (24h)"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  style={input}
+                />
+              </div>
+              {(() => {
+                const parsedDate = parseDate(scheduledDate);
+                const parsedTime = parseTime(scheduledTime);
+                if (!parsedDate || !parsedTime) return null;
+                const d = new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d, parsedTime.h, parsedTime.m);
+                if (Number.isNaN(d.getTime())) return null;
+                return (
+                  <div style={{ fontSize: 13, color: CL.green, marginTop: 10 }}>
+                    {d.getTime() <= Date.now()
+                      ? '⚠ That time is in the past'
+                      : 'Will send ' + d.toLocaleString('en-GB', {
+                          weekday: 'short', day: 'numeric', month: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
