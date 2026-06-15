@@ -126,6 +126,43 @@ export async function listJobs(
   return request<ListJobsResponse>('GET', `/jobs?limit=${limit}`);
 }
 
+// === Queued-job views (for the in-page queue UI) ===
+
+export interface JobItem {
+  id: string;
+  accountId: string;
+  conversationId: string | null;
+  modelTarget: string;
+  promptText: string;
+  status: string;
+  scheduledFor: string;
+  createdAt: string;
+}
+
+export interface ListJobsResult {
+  items: JobItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export async function listQueuedJobs(params: {
+  accountId?: string;
+  status?: string;
+  limit?: number;
+} = {}): Promise<ApiResponse<ListJobsResult>> {
+  const q = new URLSearchParams();
+  if (params.accountId) q.set('accountId', params.accountId);
+  if (params.status) q.set('status', params.status);
+  q.set('limit', String(params.limit ?? 100));
+  return request<ListJobsResult>('GET', `/jobs?${q.toString()}`);
+}
+
+export async function cancelJob(id: string): Promise<ApiResponse<{ ok: boolean }>> {
+  return request<{ ok: boolean }>('DELETE', `/jobs/${id}`);
+}
+
 // === Health check ===
 
 export interface HealthResponse {

@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { computeSendTime } from '@/lib/reset-parser';
+import { CL } from '@/lib/theme';
+import { parseConversationId } from '@/lib/conversation';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,6 +16,7 @@ export interface ScheduleConfig {
   modelTarget: string;
   thinkingMode: boolean;
   scheduledAt?: string; // ISO 8601 absolute send time
+  conversationId?: string | null;
 }
 
 type Mode = 'session' | 'absolute';
@@ -55,19 +58,6 @@ const TIME_PRESETS: { label: string; make: () => Date }[] = [
     make: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; },
   },
 ];
-
-// ── Theme ──────────────────────────────────────────────────────────────────────
-
-const CL = {
-  orange: '#da7756',
-  bg: '#1f1e1c',
-  surface: '#2a2a27',
-  surfaceHi: '#34332f',
-  border: '#3d3d38',
-  text: '#e8e4dd',
-  muted: '#9b9790',
-  green: '#5fb37e',
-} as const;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -129,6 +119,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     }
 
     const config: ScheduleConfig = { promptText, modelTarget, thinkingMode };
+    config.conversationId = parseConversationId(location.pathname);
 
     if (mode === 'absolute') {
       if (!scheduledAt) {

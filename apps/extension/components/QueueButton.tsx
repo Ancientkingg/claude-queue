@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { ScheduleModal } from './ScheduleModal';
 import type { ScheduleConfig } from './ScheduleModal';
+import type { QueuedJob } from '@/lib/queue-store';
+import { parseConversationId } from '@/lib/conversation';
 
-export const QueueButton: React.FC = () => {
+export const QueueButton: React.FC<{ onQueued?: (job: QueuedJob) => void }> = ({ onQueued }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [lastStatus, setLastStatus] = useState<string | null>(null);
 
@@ -15,6 +17,16 @@ export const QueueButton: React.FC = () => {
 
       if (response?.ok) {
         setLastStatus('✓ Queued');
+        if (response.jobId && response.scheduledAt) {
+          onQueued?.({
+            id: response.jobId,
+            conversationId: parseConversationId(location.pathname),
+            promptText: config.promptText,
+            modelTarget: config.modelTarget,
+            scheduledFor: response.scheduledAt,
+            status: 'PENDING',
+          });
+        }
         setTimeout(() => setLastStatus(null), 3000);
       } else {
         setLastStatus(`✗ ${response?.error ?? 'Failed'}`);

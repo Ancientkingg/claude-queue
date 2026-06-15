@@ -4,6 +4,8 @@ import {
   createJob,
   listJobs,
   healthCheck,
+  listQueuedJobs,
+  cancelJob,
   type CreateJobPayload,
 } from '@/lib/api-client';
 import {
@@ -16,6 +18,7 @@ import {
 } from '@/lib/storage';
 import { parseResetTimestamp } from '@/lib/reset-parser';
 import type { ScheduleConfig } from '@/components/ScheduleModal';
+import type { QueuedJob } from '@/lib/queue-store';
 
 export default defineBackground(() => {
   console.log('[Claude Queue] Background script loaded');
@@ -48,6 +51,12 @@ export default defineBackground(() => {
 
             case 'GET_RESET_TIME':
               return await handleGetResetTime();
+
+            case 'LIST_QUEUED_JOBS':
+              return await handleListQueuedJobs();
+
+            case 'CANCEL_JOB':
+              return await handleCancelJob(message.payload as { id: string });
 
             default:
               return { ok: false, error: `Unknown message type: ${message.type}` };
@@ -161,6 +170,7 @@ async function handleQueueJob(config: ScheduleConfig) {
     promptText: config.promptText,
     modelTarget: config.modelTarget,
     thinkingMode: config.thinkingMode,
+    conversationId: config.conversationId ?? null,
     attachments: [],
   };
 
@@ -245,6 +255,31 @@ async function handleGetResetTime() {
     return { ok: true, resetAtMs: cached.resetAtMs, capturedAtMs: cached.capturedAtMs };
   }
   return { ok: false, error: 'Could not retrieve usage reset time' };
+}
+
+async function handleListQueuedJobs(): Promise<{ ok: boolean; jobs: QueuedJob[]; error?: string }> {
+  const accountId = await getAccountId();
+  if (!accountId) return { ok: true, jobs: [] };
+
+  const res = await listQueuedJobs({ accountId, status: 'PENDING', limit: 100 });
+  if (res.ok && res.data) {
+    const jobs: QueuedJob[] = res.data.items.map((it) => ({
+      id: it.id,
+      conversationId: it.conversationId,
+      promptText: it.promptText,
+      modelTarget: it.modelTarget,
+      scheduledFor: it.scheduledFor,
+      status: it.status,
+    }));
+    return { ok: true, jobs };
+  }
+  return { ok: false, jobs: [], error: `Failed to list queued jobs (HTTP ${res.status})` };
+}
+
+async function handleCancelJob(payload: { id: string }) {
+  const res = await cancelJob(payload.id);
+  if (res.ok) return { ok: true };
+  return { ok: false, status: res.status, error: `Cancel failed (HTTP ${res.status})` };
 }
 
 async function handleHealthCheck() {

@@ -1,6 +1,10 @@
 import { createRoot, type Root } from 'react-dom/client';
 import React from 'react';
 import { QueueButton } from '@/components/QueueButton';
+import { QueuedBubbles } from '@/components/QueuedBubbles';
+import { QueuedSidebar } from '@/components/QueuedSidebar';
+import { PseudoChat } from '@/components/PseudoChat';
+import { QueueStore, type QueuedJob } from '@/lib/queue-store';
 // NOTE: No CSS import — injecting utilities into claude.ai's <head> would
 // conflict with their CSS modules and blank the page. Inline styles only.
 
@@ -31,13 +35,39 @@ export default defineContentScript({
 
     await waitForAnyContent(15000);
 
+    // Shared store of this account's PENDING jobs, fed by the background.
+    const store = new QueueStore(async () => {
+      const res = await browser.runtime.sendMessage({ type: 'LIST_QUEUED_JOBS' });
+      return res?.ok ? (res.jobs as QueuedJob[]) : [];
+    });
+    store.startPolling(10_000);
+
+    // Emit a 'cq:nav' event whenever the SPA URL changes (history + popstate).
+    let lastHref = location.href;
+    const fireNav = () => {
+      if (location.href !== lastHref) {
+        lastHref = location.href;
+        window.dispatchEvent(new CustomEvent('cq:nav'));
+        void store.refresh();
+      }
+    };
+    for (const m of ['pushState', 'replaceState'] as const) {
+      const orig = history[m];
+      history[m] = function (this: History, ...args: Parameters<History['pushState']>) {
+        const r = orig.apply(this, args);
+        fireNav();
+        return r;
+      } as History[typeof m];
+    }
+    window.addEventListener('popstate', fireNav);
+
     // Single React root, reused across re-anchors so modal/button state survives.
     const wrapper = document.createElement('span');
     wrapper.id = 'claude-queue-root';
     wrapper.style.cssText =
       'display:inline-flex;align-items:center;vertical-align:middle;flex-shrink:0;';
     const root: Root = createRoot(wrapper);
-    root.render(React.createElement(QueueButton));
+    root.render(React.createElement(QueueButton, { onQueued: (j: QueuedJob) => store.addOptimistic(j) }));
 
     // Insert (or re-insert) the wrapper right after the mic button so it sits
     // between the mic and the wave/send button.
@@ -83,6 +113,10 @@ export default defineContentScript({
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
+    mountQueuedBubbles(store);
+    mountQueuedSidebar(store);
+    mountPseudoChat(store);
+
     console.log('[Claude Queue] UI mounted');
   },
 });
@@ -124,6 +158,67 @@ function findSendButton(): HTMLElement | null {
     if (el) return el;
   }
   return null;
+}
+
+function mountQueuedBubbles(store: QueueStore) {
+  const wrapper = document.createElement('div');
+  wrapper.id = 'claude-queue-bubbles';
+  wrapper.style.cssText = 'width:100%;';
+  const root = createRoot(wrapper);
+  root.render(React.createElement(QueuedBubbles, { store }));
+
+  const ensure = () => {
+    if (wrapper.isConnected) return;
+    // Anchor: just above the input composer (the contenteditable's scroll/flex
+    // ancestor), so bubbles appear at the end of the thread. Walk up to a wide
+    // container and insert before the composer block.
+    const editable = document.querySelector('[contenteditable="true"]');
+    const composer = editable?.closest('div[class*="mx-"]') ?? editable?.parentElement?.parentElement;
+    if (composer?.parentElement) {
+      composer.parentElement.insertBefore(wrapper, composer);
+    }
+  };
+  ensure();
+  let scheduled = false;
+  const obs = new MutationObserver(() => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => { scheduled = false; ensure(); });
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+}
+
+function mountQueuedSidebar(store: QueueStore) {
+  const wrapper = document.createElement('div');
+  wrapper.id = 'claude-queue-sidebar';
+  const root = createRoot(wrapper);
+  root.render(React.createElement(QueuedSidebar, { store }));
+
+  const ensure = () => {
+    if (wrapper.isConnected) return;
+    // Anchor: top of the chat-history nav. Find a nav list that contains chat
+    // links and insert our section before it.
+    const navLink = document.querySelector('nav a[href^="/chat/"], a[href^="/chat/"]');
+    const list = navLink?.closest('nav') ?? navLink?.parentElement?.parentElement;
+    if (list?.parentElement) {
+      list.parentElement.insertBefore(wrapper, list);
+    }
+  };
+  ensure();
+  let scheduled = false;
+  const obs = new MutationObserver(() => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => { scheduled = false; ensure(); });
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+}
+
+function mountPseudoChat(store: QueueStore) {
+  const wrapper = document.createElement('div');
+  wrapper.id = 'claude-queue-pseudo';
+  document.body.appendChild(wrapper);
+  createRoot(wrapper).render(React.createElement(PseudoChat, { store }));
 }
 
 /** Resolve once the SPA has rendered real content into #root. */
