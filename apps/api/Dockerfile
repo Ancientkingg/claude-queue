@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache openssl python3 make g++ && npm install -g pnpm
 
 WORKDIR /app
@@ -28,7 +28,7 @@ RUN cd apps/api && pnpm exec prisma generate
 RUN cd apps/api && pnpm exec tsc
 
 # Stage 2: Production
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 RUN apk add --no-cache openssl && npm install -g pnpm
 
 WORKDIR /app

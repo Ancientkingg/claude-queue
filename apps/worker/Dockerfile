@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache openssl python3 make g++ && npm install -g pnpm
 
 WORKDIR /app
@@ -25,7 +25,7 @@ RUN cd apps/api && pnpm exec prisma generate
 RUN cd apps/worker && pnpm exec tsc
 
 # Stage 2: Production - slim Node image + Chromium only
-FROM node:20-slim AS production
+FROM node:22-slim AS production
 
 # Install pnpm
 RUN npm install -g pnpm
