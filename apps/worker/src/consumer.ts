@@ -12,6 +12,7 @@ import { downloadAttachment } from './storage/s3-client.js';
 import { createBrowserContext, closeBrowser } from './browser/context-factory.js';
 import { executeClaudePrompt, type AutomationPayload } from './browser/claude-automator.js';
 import { nextProxy } from './browser/proxy-rotator.js';
+import { destroySession } from './browser/flare-solverr.js';
 
 const QUEUE_NAME = 'claude-queue';
 
@@ -227,5 +228,7 @@ export async function shutdownConsumer(worker: Worker): Promise<void> {
   await worker.close();
   console.log('🌐 Closing browser...');
   await closeBrowser();
+  console.log('🦾 Destroying FlareSolverr session...');
+  await destroySession();
   console.log('👋 Shutdown complete');
 }

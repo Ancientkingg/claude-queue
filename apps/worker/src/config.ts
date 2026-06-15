@@ -17,6 +17,10 @@ export interface WorkerConfig {
   challengeAutoResolveMs: number;
   /** Timeout for the external CAPTCHA solving service. */
   captchaSolverTimeoutMs: number;
+  /** Base URL of the FlareSolverr instance (e.g. http://localhost:8191). */
+  flareSolverrUrl: string;
+  /** Optional proxy URL for FlareSolverr's own browser (different from the Playwright proxy). */
+  flareSolverrProxy?: string;
 }
 
 function requireEnv(name: string, fallback?: string): string {
@@ -43,4 +47,6 @@ export const config: WorkerConfig = {
   retryBaseMs: parseInt(process.env['RETRY_BASE_MS'] ?? '5000', 10),
   challengeAutoResolveMs: parseInt(process.env['CHALLENGE_AUTO_RESOLVE_MS'] ?? '15000', 10),
   captchaSolverTimeoutMs: parseInt(process.env['CAPTCHA_SOLVER_TIMEOUT_MS'] ?? '120000', 10),
+  flareSolverrUrl: (process.env['FLARESOLVERR_URL'] ?? 'http://localhost:8191').replace(/\/+$/, ''),
+  flareSolverrProxy: process.env['FLARESOLVERR_PROXY']?.trim() || undefined,
 };

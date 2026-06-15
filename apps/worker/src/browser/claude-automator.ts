@@ -1,5 +1,6 @@
 import type { Page, BrowserContext } from 'playwright';
 import { solveTurnstile, extractSitekeyFromSrc } from './captcha-solver.js';
+import { solveViaFlareSolverr, toPlaywrightCookies } from './flare-solverr.js';
 import { config } from '../config.js';
 
 export interface AutomationResult {
@@ -243,13 +244,16 @@ async function handleTurnstileChallenge(page: Page): Promise<boolean> {
 }
 
 /**
- * Navigate to a URL with retry, backoff, and Turnstile challenge handling.
+ * Navigate to a URL with FlareSolverr-based challenge bypass as the primary
+ * strategy, falling back to direct navigation + CAPTCHA solving.
  *
  * Flow:
- *  1. Navigate to URL
- *  2. If a challenge appears, wait for auto-resolve
- *  3. If auto-resolve fails, attempt CAPTCHA solving
- *  4. Retry navigation with exponential backoff (max 3 attempts)
+ *  1. Call FlareSolverr to solve any Cloudflare challenge before Playwright
+ *     even touches the page. Inject the clearance cookies into the context.
+ *  2. Navigate with Playwright — Cloudflare sees the cf_clearance cookie and
+ *     lets us through without a challenge.
+ *  3. If FlareSolverr is unreachable or fails, fall back to direct navigation
+ *     with the existing detection → auto-resolve → CAPTCHA solving chain.
  */
 async function navigateWithRetry(
   page: Page,
@@ -258,6 +262,42 @@ async function navigateWithRetry(
 ): Promise<void> {
   const baseDelay = config.retryBaseMs;
 
+  // ── Primary strategy: FlareSolverr pre-seeding ─────────────────────────
+  // Use FlareSolverr to fetch the URL, solve the challenge, and return the
+  // clearance cookies. We inject them into the Playwright context so the
+  // challenge never appears when we navigate.
+  try {
+    console.log('  🦾 Attempting FlareSolverr pre-seed...');
+    const fsSolution = await solveViaFlareSolverr(url, 60_000);
+
+    if (fsSolution && fsSolution.cookies.length > 0) {
+      // Inject the Cloudflare clearance cookies into the browser context
+      const pwCookies = toPlaywrightCookies(fsSolution.cookies);
+      await page.context().addCookies(pwCookies);
+      console.log(`  🍪 Seeded ${pwCookies.length} FlareSolverr cookies`);
+
+      // Navigate — Cloudflare should see the clearance cookie and skip the challenge
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await humanDelay(800, 1_500);
+      console.log(`  📍 Landed on ${page.url()}`);
+
+      const block = await checkForBlock(page);
+      if (!block) {
+        console.log('  ✅ FlareSolverr bypass successful');
+        return;
+      }
+
+      // FlareSolverr cookies weren't enough — fall through to the retry loop
+      console.log(`  ⚠️  FlareSolverr bypass incomplete, challenge still present: ${block}`);
+    } else {
+      console.log('  ⚠️  FlareSolverr returned no cookies, falling back to direct navigation');
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`  ⚠️  FlareSolverr pre-seed failed: ${msg}`);
+  }
+
+  // ── Fallback: direct navigation + challenge detection + CAPTCHA solving ──
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(attempt > 1
       ? `  🔄 Retry attempt ${attempt}/${maxAttempts}...`

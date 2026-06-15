@@ -64,6 +64,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    environment:
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+    restart: unless-stopped
+
   worker:
     build:
       context: .
@@ -77,6 +83,7 @@ services:
       S3_BUCKET: ${S3_BUCKET:-claude-queue-attachments}
       BROWSER_HEADLESS: "true"
       CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      FLARESOLVERR_URL: http://flaresolverr:8191
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,6 +91,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      flaresolverr:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
