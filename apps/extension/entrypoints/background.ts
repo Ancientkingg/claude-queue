@@ -14,7 +14,7 @@ import {
   getResetInfo,
   setResetInfo,
 } from '@/lib/storage';
-import { parseResetHeader } from '@/lib/reset-parser';
+import { parseResetTimestamp } from '@/lib/reset-parser';
 import type { ScheduleConfig } from '@/components/ScheduleModal';
 
 export default defineBackground(() => {
@@ -63,30 +63,43 @@ export default defineBackground(() => {
       return true; // Keep the message channel open for async response
     },
   );
-
-  // Passively capture claude.ai's 5-hour usage-reset time from rate-limit
-  // response headers (Gaugr-style). claude.ai polls its own usage endpoints,
-  // so this populates within seconds of the tab being open.
-  browser.webRequest.onHeadersReceived.addListener(
-    (details) => {
-      const headers = details.responseHeaders ?? [];
-      let raw: string | undefined;
-      for (const h of headers) {
-        if (h.name.toLowerCase() === 'anthropic-ratelimit-unified-5h-reset') {
-          raw = h.value;
-          break;
-        }
-      }
-      const resetAtMs = parseResetHeader(raw);
-      if (resetAtMs != null) {
-        void setResetInfo({ resetAtMs, capturedAtMs: Date.now() });
-      }
-      return undefined;
-    },
-    { urls: ['https://claude.ai/api/*'] },
-    ['responseHeaders'],
-  );
 });
+
+/**
+ * Fetch claude.ai's 5-hour usage-window reset time directly from the same REST
+ * endpoint the Settings → Usage page uses — no message needs to be sent. The
+ * org id comes from the `lastActiveOrg` cookie; the request rides the user's
+ * claude.ai cookies (credentials: 'include') and bypasses CORS because
+ * claude.ai is in host_permissions. Returns reset epoch-ms, or null.
+ */
+async function fetchUsageReset(): Promise<number | null> {
+  try {
+    const cookie = await browser.cookies.get({
+      url: 'https://claude.ai',
+      name: 'lastActiveOrg',
+    });
+    const orgId = cookie?.value;
+    if (!orgId) return null;
+
+    const res = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { five_hour?: { resets_at?: string | number } };
+    const resetAtMs = parseResetTimestamp(data?.five_hour?.resets_at);
+    if (resetAtMs != null) {
+      await setResetInfo({ resetAtMs, capturedAtMs: Date.now() });
+      return resetAtMs;
+    }
+    return null;
+  } catch (err) {
+    console.error('[Claude Queue] Failed to fetch usage reset:', err);
+    return null;
+  }
+}
 
 async function handleSyncSession() {
   const session = await harvestSession();
@@ -211,12 +224,27 @@ async function handleListJobs() {
   };
 }
 
+const RESET_CACHE_TTL_MS = 60_000;
+
 async function handleGetResetTime() {
-  const info = await getResetInfo();
-  if (info) {
-    return { ok: true, resetAtMs: info.resetAtMs, capturedAtMs: info.capturedAtMs };
+  // Serve a recent cached value to avoid hammering the endpoint while the
+  // modal polls; otherwise fetch fresh from claude.ai.
+  const cached = await getResetInfo();
+  if (cached && Date.now() - cached.capturedAtMs < RESET_CACHE_TTL_MS) {
+    return { ok: true, resetAtMs: cached.resetAtMs, capturedAtMs: cached.capturedAtMs };
   }
-  return { ok: false, error: 'No reset time captured yet' };
+
+  const resetAtMs = await fetchUsageReset();
+  if (resetAtMs != null) {
+    return { ok: true, resetAtMs, capturedAtMs: Date.now() };
+  }
+
+  // Fall back to any stale-but-valid stored value (the window may not have
+  // passed yet even if it's older than the cache TTL).
+  if (cached) {
+    return { ok: true, resetAtMs: cached.resetAtMs, capturedAtMs: cached.capturedAtMs };
+  }
+  return { ok: false, error: 'Could not retrieve usage reset time' };
 }
 
 async function handleHealthCheck() {

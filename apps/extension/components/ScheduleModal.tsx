@@ -70,17 +70,19 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     setIsSubmitting(false);
 
     let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | undefined;
     const poll = async () => {
       try {
         const res = await browser.runtime.sendMessage({ type: 'GET_RESET_TIME' });
         if (!cancelled && res?.ok && typeof res.resetAtMs === 'number') {
           setResetAtMs(res.resetAtMs);
+          if (interval) clearInterval(interval); // got it — stop retrying
         }
       } catch { /* ignore */ }
     };
     poll();
-    const interval = setInterval(poll, 2000);
-    return () => { cancelled = true; clearInterval(interval); };
+    interval = setInterval(poll, 3000);
+    return () => { cancelled = true; if (interval) clearInterval(interval); };
   }, [isOpen]);
 
   const extractPromptText = useCallback((): string => {

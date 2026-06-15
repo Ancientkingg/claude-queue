@@ -14,16 +14,18 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
 
 /**
- * Parse an `anthropic-ratelimit-unified-*-reset` header value into epoch ms.
- * Accepts epoch seconds, epoch milliseconds, or an RFC-3339 / ISO string.
- * Returns null for anything unparseable or implausible.
+ * Parse a claude.ai usage `resets_at` value into epoch milliseconds.
+ * The REST `/usage` endpoint returns an RFC-3339 string and the streamed
+ * `message_limit` event returns epoch seconds, so accept epoch seconds,
+ * epoch milliseconds, or an RFC-3339 / ISO string. Returns null for anything
+ * unparseable or implausible.
  */
-export function parseResetHeader(
-  raw: string | null | undefined,
+export function parseResetTimestamp(
+  raw: string | number | null | undefined,
   nowMs: number = Date.now(),
 ): number | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
+  if (raw == null || raw === '') return null;
+  const trimmed = String(raw).trim();
   if (!trimmed) return null;
 
   let ms: number | null = null;
