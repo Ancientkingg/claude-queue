@@ -5,6 +5,7 @@ import {
   Param,
   Body,
   Query,
+  Delete,
   BadRequestException,
   HttpCode,
   HttpStatus,
@@ -69,6 +70,8 @@ export class QueueController {
   async listJobs(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('accountId') accountId?: string,
+    @Query('status') status?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
@@ -79,8 +82,12 @@ export class QueueController {
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
       throw new BadRequestException('limit must be between 1 and 100');
     }
+    const ALLOWED = ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'];
+    if (status && !ALLOWED.includes(status)) {
+      throw new BadRequestException(`status must be one of ${ALLOWED.join(', ')}`);
+    }
 
-    const result = await this.queueService.findAll(pageNum, limitNum);
+    const result = await this.queueService.findAll(pageNum, limitNum, { accountId, status });
 
     this.logger.log(`📋 Listed ${result.items.length}/${result.total} jobs (page ${pageNum})`);
 
@@ -105,6 +112,13 @@ export class QueueController {
         })),
       })),
     };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async cancelJob(@Param('id') id: string) {
+    this.logger.log(`🗑️  Canceling job ${id}`);
+    return this.queueService.cancelJob(id);
   }
 
   @Get(':id')

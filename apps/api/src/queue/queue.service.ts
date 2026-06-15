@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -111,11 +111,20 @@ export class QueueService {
     return message;
   }
 
-  async findAll(page = 1, limit = 20) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    filters: { accountId?: string; status?: string } = {},
+  ) {
     const skip = (page - 1) * limit;
+
+    const where: { account_id?: string; status?: string } = {};
+    if (filters.accountId) where.account_id = filters.accountId;
+    if (filters.status) where.status = filters.status;
 
     const [items, total] = await Promise.all([
       this.prisma.queuedMessage.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
@@ -126,7 +135,7 @@ export class QueueService {
           },
         },
       }),
-      this.prisma.queuedMessage.count(),
+      this.prisma.queuedMessage.count({ where }),
     ]);
 
     return {
@@ -154,5 +163,27 @@ export class QueueService {
     }
 
     return message;
+  }
+
+  async cancelJob(id: string) {
+    const job = await this.prisma.queuedMessage.findUnique({ where: { id } });
+    if (!job) {
+      throw new NotFoundException(`Job with id "${id}" not found`);
+    }
+    if (job.status !== 'PENDING') {
+      throw new ConflictException('Job is no longer cancelable');
+    }
+
+    // Remove the delayed BullMQ job (added with jobId = message.id).
+    try {
+      const bull = await this.queue.getJob(id);
+      if (bull) await bull.remove();
+    } catch (err) {
+      this.logger.warn(`BullMQ remove failed for ${id}: ${String(err)}`);
+    }
+
+    await this.prisma.queuedMessage.delete({ where: { id } });
+    this.logger.log(`Job ${id} canceled and removed`);
+    return { ok: true };
   }
 }
