@@ -48,7 +48,20 @@ export const QueuedSidebar: React.FC<{ store: QueueStore }> = ({ store }) => {
 
   const onClick = (e: Entry) => {
     if (e.conversationId) {
-      location.assign(`https://claude.ai/chat/${e.conversationId}`);
+      // Navigate via the SPA's own routing so the extension context survives.
+      // Find an existing <a> link for this chat in the sidebar and click it —
+      // claude.ai's SPA intercepts <a> clicks and routes without a full reload.
+      const link = document.querySelector(`a[href$="/chat/${e.conversationId}"]`) as HTMLAnchorElement | null;
+      if (link) {
+        link.click();
+      } else {
+        // Chat not in the sidebar yet — push state and let claude.ai's router
+        // pick it up via the popstate listener we dispatch.
+        history.pushState(null, '', `/chat/${e.conversationId}`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        // Also fire our own nav event so hooks/anchors update.
+        window.dispatchEvent(new CustomEvent('cq:nav'));
+      }
     } else if (e.newChatJobId) {
       window.dispatchEvent(new CustomEvent('cq:open-pseudo', { detail: { id: e.newChatJobId } }));
     }
