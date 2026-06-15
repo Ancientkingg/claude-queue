@@ -43,11 +43,13 @@ COPY apps/api/prisma/ ./apps/api/prisma/
 # Install production dependencies (includes playwright)
 RUN pnpm install --frozen-lockfile --prod
 
-# Install Chromium system dependencies via apt (need playwright installed first)
-RUN apt-get update && npx playwright install-deps chromium
-
-# Install only Chromium browser (not Firefox/WebKit)
-RUN npx playwright install chromium
+# Install Chromium + its system dependencies using the workspace-pinned Playwright.
+# `pnpm exec` (run from the worker package) guarantees we invoke the exact Playwright
+# version from apps/worker/package.json, so the browser build downloaded to
+# /root/.cache/ms-playwright matches what the app launches at runtime. Using `npx`
+# here would resolve playwright@latest from the registry and fetch a mismatched
+# browser build, causing "Executable doesn't exist at .../chromium_headless_shell-*".
+RUN apt-get update && cd apps/worker && pnpm exec playwright install --with-deps chromium
 
 # Generate Prisma client
 RUN cd apps/api && pnpm exec prisma generate
