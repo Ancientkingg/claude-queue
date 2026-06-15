@@ -94,9 +94,9 @@ export interface CreateJobPayload {
 }
 
 export interface CreateJobResponse {
-  jobId: string;
+  id: string;
+  scheduledFor: string;
   status: string;
-  scheduledAt: string;
 }
 
 export async function createJob(

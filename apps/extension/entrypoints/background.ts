@@ -183,8 +183,8 @@ async function handleQueueJob(config: ScheduleConfig) {
   if (response.ok && response.data) {
     return {
       ok: true,
-      jobId: response.data.jobId,
-      scheduledAt: response.data.scheduledAt,
+      jobId: response.data.id,
+      scheduledAt: response.data.scheduledFor,
     };
   }
 
